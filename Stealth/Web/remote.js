@@ -18,6 +18,7 @@ if (!window.stealth && window.webkit && window.webkit.messageHandlers && window.
     realLocation: async () => { const r = await call('realLocation'); return r && r.ok ? [r.lat, r.lon] : null; },
     share: (name, text) => call('share', { name, text }),
     appConfig: (c) => call('appConfig', c || {}),
+    simNotify: (c) => call('simNotify', c || {}),
     openExternal: (url) => call('openExternal', { url }),
     installDeps: async () => ({ ok: false, error: 'Not needed on iPhone' }), startLink: async () => ({ ok: false }),
     restartAdmin() {}, win() {}

@@ -162,11 +162,11 @@ async function simOn(reset) {
   $('#simbar').classList.remove('hidden');
   if (current) {
     const at = current; $('#sim-place').textContent = fmt(at);
-    if (reset) placeName(at).then((n) => { if (n && current === at) $('#sim-place').textContent = n + ' · ' + fmt(at); });
+    if (reset) placeName(at).then((n) => { if (n && current === at) { $('#sim-place').textContent = n + ' · ' + fmt(at); pushSim(); } });
   }
-  renderSim(); clearInterval(simTimer); simTimer = setInterval(renderSim, 1000); pushAppCfg();
+  renderSim(); clearInterval(simTimer); simTimer = setInterval(renderSim, 1000); pushAppCfg(); pushSim();
 }
-function simOff() { simStart = null; autoStopAt = null; clearInterval(simTimer); $('#simbar').classList.add('hidden'); pushAppCfg(); }
+function simOff() { simStart = null; autoStopAt = null; clearInterval(simTimer); $('#simbar').classList.add('hidden'); pushAppCfg(); pushSim(); }
 async function stopSim(o = {}) {
   if (cfg.stopConfirm && !o.force && !confirm('Stop the simulation and return to your real location?')) return;
   const btn = $('#sim-stop'); walking = false; btn.disabled = true; btn.classList.add('busy'); $('#sim-stop-t').textContent = 'Stopping…';
@@ -181,6 +181,9 @@ async function stopSim(o = {}) {
 $('#sim-stop').onclick = () => stopSim();
 $('#b-clear').onclick = () => stopSim();
 
+function pushSim() {
+  if (window.stealth && stealth.simNotify) stealth.simNotify({ active: !!simStart, start: simStart || 0, place: ($('#sim-place').textContent || '').trim() });
+}
 function pushAppCfg() { if (window.stealth && stealth.appConfig) stealth.appConfig({ alwaysOnTop: cfg.alwaysOnTop, scale: cfg.scale, stopOnClose: cfg.stopOnClose, simActive: !!simStart }); }
 
 // ====================== panels ======================
