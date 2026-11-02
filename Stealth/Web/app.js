@@ -13,12 +13,13 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const DEFAULTS = {
   speed: 5, speedVar: 0, routeMode: 'roads', loop: false, pauseWp: 0, tick: 1000, drift: 0,
   instantClick: false, fly: true, tpZoom: 14, geocode: true, autoStop: 0, stopConfirm: false, stopOnClose: true, restoreLast: true,
-  mapStyle: 'dark', units: 'km', trail: true, follow: true, showCoords: false,
+  mapStyle: 'standard', haptics: true, units: 'km', trail: true, follow: true, showCoords: false,
   accent: '#4aa3ff', compact: false, scale: 1, anim: true, sound: false, showBattery: true, alwaysOnTop: false, shortcuts: true, openReq: false
 };
 let cfg = { ...DEFAULTS, ...store.get('cfg', {}) };
 if (store.get('spd', null) && !store.get('cfg', null)) cfg.speed = store.get('spd');
 const saveCfg = () => store.set('cfg', cfg);
+if (!store.get('mapv2', false)) { cfg.mapStyle = 'standard'; store.set('mapv2', true); saveCfg(); }   // new Apple-style map as the default once
 
 // ====================== state ======================
 let current = null;            // simulated position
@@ -33,8 +34,14 @@ let panelOpen = null;
 
 // ====================== helpers ======================
 function toast(msg, ms = 3500) { const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), ms); }
+function buzz(kind) { try { if (cfg.haptics && window.stealth && stealth.haptic) stealth.haptic(kind); } catch {} }
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); toast('Copied ' + t); }
+  catch { const a = document.createElement('textarea'); a.value = t; document.body.appendChild(a); a.select(); try { document.execCommand('copy'); toast('Copied ' + t); } catch { toast(t); } a.remove(); }
+}
 let ac;
 function beep(kind) {
+  buzz(kind);
   if (!cfg.sound) return;
   try {
     ac = ac || new (window.AudioContext || window.webkitAudioContext)();
@@ -73,12 +80,24 @@ document.querySelectorAll('#winbtns button').forEach((b) => b.onclick = () => st
 
 // ====================== map ======================
 const lastView = store.get('last', null);
-const map = L.map('map', { zoomControl: false, attributionControl: false, worldCopyJump: true, minZoom: 2 }).setView(lastView && cfg.restoreLast ? lastView : [37.5, -96], lastView && cfg.restoreLast ? 12 : 4);
-L.control.attribution({ prefix: false }).addTo(map);
+const startLL = lastView && cfg.restoreLast ? lastView : [37.5, -96], startZ = lastView && cfg.restoreLast ? 12 : 4;
+let USE_GL = !!window.GL_OK, map = null;
+if (USE_GL) { try { map = new GLMap('map', { center: startLL, zoom: startZ, minZoom: 2 }); } catch (e) { USE_GL = false; map = null; } }
+if (!USE_GL) {      // no WebGL: classic raster map
+  map = L.map('map', { zoomControl: false, attributionControl: false, worldCopyJump: true, minZoom: 2 }).setView(startLL, startZ);
+  L.control.attribution({ prefix: false }).addTo(map);
+}
+const LL = USE_GL ? window.LGL : window.L;
+document.documentElement.classList.add(USE_GL ? 'gl' : 'nogl');
 const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
 let tileLayers = [], shownStyle = null;
+function markStyle() {
+  const pick = { standard: 'standard', light: 'standard', dark: 'dark', darknl: 'dark', sat: 'sat' }[cfg.mapStyle] || 'standard';
+  document.querySelectorAll('#stylemenu button').forEach((b) => b.classList.toggle('on', b.dataset.s === pick));
+}
 function setMapStyle() {
-  if (shownStyle === cfg.mapStyle) return; shownStyle = cfg.mapStyle;
+  if (shownStyle === cfg.mapStyle) return; shownStyle = cfg.mapStyle; markStyle();
+  if (USE_GL) { map.setBase(cfg.mapStyle); return; }
   tileLayers.forEach((l) => map.removeLayer(l)); tileLayers = []; $('#map').classList.remove('osm-dark');
   const add = (u, o) => { const l = L.tileLayer(u, o).addTo(map); tileLayers.push(l); return l; };
   const st = cfg.mapStyle;
@@ -93,11 +112,23 @@ function setMapStyle() {
     add(ESRI + 'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 18, maxZoom: 19 });
   } else add('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' });
 }
+// ---- map controls: style menu, 3D tilt, compass ----
+$('#b-layers').onclick = (e) => { e.stopPropagation(); $('#stylemenu').classList.toggle('hidden'); };
+document.querySelectorAll('#stylemenu button').forEach((b) => b.onclick = () => { cfg.mapStyle = b.dataset.s; saveCfg(); setMapStyle(); $('#stylemenu').classList.add('hidden'); buzz('tap'); });
+if (USE_GL) {
+  $('#b-3d').onclick = () => { buzz('tap'); map.toggleTilt(); };
+  $('#b-north').onclick = () => { buzz('tap'); map.resetNorth(); };
+  map.onView((bearing, pitch) => {
+    $('#b-3d').classList.toggle('on', pitch > 5);
+    $('#b-north').classList.toggle('hidden', Math.abs(bearing) < 1 && pitch < 5);
+    $('#b-north svg').style.transform = `rotate(${-bearing}deg)`;
+  });
+}
 $('#zi').onclick = () => map.zoomIn(); $('#zo').onclick = () => map.zoomOut();
 map.on('mousemove', (e) => { if (cfg.showCoords) $('#coords').textContent = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`; });
 
-const meIcon = L.divIcon({ className: '', html: '<div class="me"></div>', iconSize: [22, 22], iconAnchor: [11, 11] });
-const realIcon = L.divIcon({ className: '', html: '<div class="real"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+const meIcon = LL.divIcon({ className: '', html: '<div class="me"></div>', iconSize: [22, 22], iconAnchor: [11, 11] });
+const realIcon = LL.divIcon({ className: '', html: '<div class="real"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
 
 // ---- "where am I" ----
 async function locate() {
@@ -112,7 +143,7 @@ async function locate() {
     try { const j = await (await fetch('https://ipwho.is/')).json(); if (j && j.latitude) { ll = [j.latitude, j.longitude]; approx = true; } } catch {}
   }
   if (!ll) return toast('⚠ Could not determine your location');
-  if (realMarker) realMarker.setLatLng(ll); else realMarker = L.marker(ll, { icon: realIcon, interactive: false, zIndexOffset: -100 }).addTo(map);
+  if (realMarker) realMarker.setLatLng(ll); else realMarker = LL.marker(ll, { icon: realIcon, interactive: false, zIndexOffset: -100 }).addTo(map);
   map.flyTo(ll, approx ? 11 : 15);
   toast(approx ? 'Approximate location (from your internet connection)' : 'Your real location', 5000);
 }
@@ -123,7 +154,7 @@ function trailAdd(ll, reset) {
   if (reset) { trailPts = []; if (trailLine) { trailLine.remove(); trailLine = null; } }
   if (!ll || !cfg.trail) return;
   trailPts.push(ll);
-  if (trailPts.length > 1) { if (trailLine) trailLine.setLatLngs(trailPts); else trailLine = L.polyline(trailPts, { color: getComputedStyle(document.documentElement).getPropertyValue('--ac').trim() || '#4aa3ff', weight: 3, opacity: 0.55 }).addTo(map); }
+  if (trailPts.length > 1) { if (trailLine) trailLine.setLatLngs(trailPts); else trailLine = LL.polyline(trailPts, { color: getComputedStyle(document.documentElement).getPropertyValue('--ac').trim() || '#4aa3ff', weight: 3, opacity: 0.55 }).addTo(map); }
 }
 async function teleport(lat, lon, o = {}) {
   if (!o.quiet) toast('Sending location to iPhone… (the first time can take a minute)', 60000);
@@ -135,7 +166,7 @@ async function teleport(lat, lon, o = {}) {
     return false;
   }
   current = [lat, lon]; if (cfg.restoreLast) store.set('last', current);
-  if (meMarker) meMarker.setLatLng(current); else meMarker = L.marker(current, { icon: meIcon, interactive: false }).addTo(map);
+  if (meMarker) meMarker.setLatLng(current); else meMarker = LL.marker(current, { icon: meIcon, interactive: false }).addTo(map);
   trailAdd(current, !o.quiet);
   if (!o.quiet) {
     if (cfg.fly) map.flyTo(current, Math.max(map.getZoom(), cfg.tpZoom));
@@ -173,10 +204,11 @@ async function stopSim(o = {}) {
   const r = await stealth.clearLocation();
   btn.disabled = false; btn.classList.remove('busy'); $('#sim-stop-t').textContent = 'Stop';
   if (!r.ok) { beep('err'); toast('⚠ ' + (r.error || 'Could not stop the simulation'), 10000); return; }
+  const was = simStart ? Date.now() - simStart : 0;
   simOff(); current = null; store.set('last', null);
   if (meMarker) { meMarker.remove(); meMarker = null; }
   trailAdd(null, true); trailPts = [];
-  beep('stop'); toast(o.auto ? 'Auto-stop: back to your real location' : 'Stopped — your iPhone is back to its real location', 6000);
+  beep('stop'); toast((o.auto ? 'Auto-stop: back to your real location' : 'Stopped — your iPhone is back to its real location') + (was > 5000 ? ' · connected ' + fmtDur(was / 1000) : ''), 6000);
 }
 $('#sim-stop').onclick = () => stopSim();
 $('#b-clear').onclick = () => stopSim();
@@ -303,18 +335,21 @@ function openAt(ll, name) {
   if (!name) placeName(ll).then((n) => { if (n) title.textContent = n; });
   const go = Object.assign(document.createElement('button'), { textContent: 'Teleport here', onclick: () => { map.closePopup(); teleport(ll[0], ll[1], { name: name || title.textContent }); } });
   const sv = Object.assign(document.createElement('button'), { className: 's', textContent: '★ Save', onclick: () => { const l = store.get('saved', []); l.push({ name: name || title.textContent || fmt(ll), ll }); store.set('saved', l); toast('Saved'); map.closePopup(); } });
-  el.append(go, sv); L.popup({ closeButton: false, offset: [0, -2] }).setLatLng(ll).setContent(el).openOn(map);
+  const mp = Object.assign(document.createElement('button'), { className: 's', textContent: 'Maps', onclick: () => { const u = `https://maps.apple.com/?ll=${ll[0]},${ll[1]}&q=${encodeURIComponent(name || title.textContent || 'Pin')}`; if (window.stealth && stealth.openExternal) stealth.openExternal(u); else window.open(u, '_blank'); } });
+  const cp = Object.assign(document.createElement('button'), { className: 's', textContent: 'Copy', onclick: () => copyText(fmt(ll)) });
+  const row = document.createElement('div'); row.className = 'row'; row.append(go, sv, mp, cp); el.append(row); LL.popup({ closeButton: false, offset: [0, -2] }).setLatLng(ll).setContent(el).openOn(map);
 }
 
 map.on('click', (e) => {
+  $('#stylemenu').classList.add('hidden');
   const ll = [e.latlng.lat, e.latlng.lng];
   if (panelOpen && window.innerWidth <= 700) closePanels();
   if (mode === 'tp') return cfg.instantClick ? teleport(ll[0], ll[1]) : openAt(ll);
   if (walking) return;
-  wps.push(ll); wpMarkers.push(L.marker(ll, { icon: L.divIcon({ className: '', html: '<div class="wp"></div>', iconSize: [12, 12] }) }).addTo(map));
+  wps.push(ll); wpMarkers.push(LL.marker(ll, { icon: LL.divIcon({ className: '', html: '<div class="wp"></div>', iconSize: [12, 12] }) }).addTo(map));
   rt = null; drawLine(); routeInfo();
 });
-function drawLine() { if (routeLine) routeLine.remove(); routeLine = wps.length > 1 ? L.polyline(wps, { color: '#4aa3ff', weight: 3, dashArray: '6 6' }).addTo(map) : null; }
+function drawLine() { if (routeLine) routeLine.remove(); routeLine = wps.length > 1 ? LL.polyline(wps, { color: '#4aa3ff', weight: 3, dashArray: '6 6' }).addTo(map) : null; }
 function routeInfo() {
   if (!wps.length) { $('#rinfo').textContent = 'Click the map to add waypoints'; return; }
   const d = wps.reduce((s, p, i) => i ? s + dist(wps[i - 1], p) : 0, 0);
@@ -346,7 +381,7 @@ async function runRoute() {
     if (!rt || rt.done) {
       $('#rinfo').textContent = 'Building route…';
       const { path, stops } = await buildPath();
-      if (pathLine) pathLine.remove(); pathLine = L.polyline(path, { color: '#4aa3ff', weight: 4, opacity: 0.9 }).addTo(map);
+      if (pathLine) pathLine.remove(); pathLine = LL.polyline(path, { color: '#4aa3ff', weight: 4, opacity: 0.9 }).addTo(map);
       rt = { path, stops, seg: 0, pos: path[0], covered: 0, total: pathLen(path), done: false, lap: 0 };
       simStart = null; trailAdd(null, true);
       if (!(await teleport(path[0][0], path[0][1], { quiet: true }))) { walking = false; rt = null; return; }
@@ -409,14 +444,28 @@ function importPlaces() {
   i.onchange = () => { const f = i.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { try { const j = JSON.parse(r.result); const s = store.get('saved', []); (j.saved || []).forEach((p) => p && p.ll && s.push({ name: String(p.name || fmt(p.ll)), ll: [+p.ll[0], +p.ll[1]] })); store.set('saved', s); toast(`Imported ${(j.saved || []).length} places`); renderSaved(); } catch { toast('⚠ Invalid file'); } }; r.readAsText(f); };
   i.click();
 }
+const LANDMARKS = [
+  ['Eiffel Tower, Paris', 48.85837, 2.29448], ['Statue of Liberty, New York', 40.68925, -74.04454], ['Golden Gate Bridge, San Francisco', 37.81993, -122.47855],
+  ['Times Square, New York', 40.75797, -73.9855], ['Colosseum, Rome', 41.89021, 12.49223], ['Big Ben, London', 51.50073, -0.12463],
+  ['Sydney Opera House', -33.85679, 151.21525], ['Taj Mahal, Agra', 27.17513, 78.04218], ['Machu Picchu, Peru', -13.16313, -72.54496],
+  ['Christ the Redeemer, Rio de Janeiro', -22.95192, -43.21048], ['Shibuya Crossing, Tokyo', 35.65951, 139.70055], ['Burj Khalifa, Dubai', 25.1972, 55.27439],
+  ['Great Pyramid of Giza', 29.97916, 31.1342], ['Niagara Falls', 43.08002, -79.07412], ['Grand Canyon, Arizona', 36.05654, -112.12569],
+  ['Hollywood Sign, Los Angeles', 34.1342, -118.32169], ['Space Needle, Seattle', 47.62051, -122.3493], ['The Alamo, San Antonio', 29.42594, -98.48615],
+  ['Sagrada Família, Barcelona', 41.40363, 2.17436], ['Brandenburg Gate, Berlin', 52.51628, 13.3777]
+];
+function surprise() {
+  const p = LANDMARKS[Math.floor(Math.random() * LANDMARKS.length)], ll = [p[1], p[2]];
+  closePanels(); map.flyTo(ll, 15); setTimeout(() => openAt(ll, p[0]), 1200);
+}
 const TOOLS = [
   { ico: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z', t: 'Install / update engine', d: 'Downloads pymobiledevice3 (needs Python)', desk: true, f: installEngine },
   { ico: 'M13 2 4 14h7l-1 8 9-12h-7z', t: 'Start phone link', d: 'Opens the admin window that links your iPhone', desk: true, f: startLink },
   { ico: 'M12 2 4 6v6c0 5 3.5 8.500 8 10 4.500-1.500 8-5 8-10V6z', t: 'Restart as administrator', d: 'Some features need admin rights', desk: true, f: () => stealth.restartAdmin() },
   { ico: 'M12 22s7-6.100 7-12a7 7 0 1 0-14 0c0 5.900 7 12 7 12z', t: 'Go to coordinates…', d: 'Type latitude, longitude', f: () => { const v = prompt('Latitude, longitude (e.g. 40.6892, -74.0445)'); if (!v) return; const m = v.match(/(-?\d+(\.\d+)?)\s*[, ]\s*(-?\d+(\.\d+)?)/); if (!m) return toast('⚠ Invalid coordinates'); const ll = [+m[1], +m[3]]; closePanels(); map.flyTo(ll, 14); setTimeout(() => openAt(ll), 600); } },
-  { ico: 'M8 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2M8 4a2 2 0 0 1 2-2h6l4 4v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2z', t: 'Copy current coordinates', d: 'Simulated position, or the map center', f: () => { const ll = current || [map.getCenter().lat, map.getCenter().lng]; try { navigator.clipboard.writeText(fmt(ll)); toast('Copied ' + fmt(ll)); } catch { toast(fmt(ll)); } } },
+  { ico: 'M8 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2M8 4a2 2 0 0 1 2-2h6l4 4v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2z', t: 'Copy current coordinates', d: 'Simulated position, or the map center', f: () => { const c = map.getCenter(); copyText(fmt(current || [c.lat, c.lng])); } },
   { ico: 'M12 3v12m0 0-4-4m4 4 4-4M4 21h16', t: 'Export route (GPX)', d: 'Save the current route as a .gpx file', f: exportGpx },
   { ico: 'M12 3v12m0 0-4-4m4 4 4-4M4 21h16', t: 'Get the iPhone app', d: 'Control your location from the iPhone itself', desk: true, f: () => openPanel('phoneapp') },
+  { ico: 'm12 3 2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.500 6.600 19.500l1.200-6L3.300 9.300l6.100-.7z', t: 'Surprise me', d: 'Fly to a random famous place', f: surprise },
   { ico: 'M12 2v4M12 18v4M2 12h4M18 12h4', t: 'Where am I', d: 'Center the map on your position', f: () => { closePanels(); locate(); } }
 ];
 function renderTools() {
@@ -451,7 +500,7 @@ const SCHEMA = [
     { type: 'toggle', key: 'restoreLast', label: 'Remember last position', desc: 'Open the map where you left it' }
   ] },
   { t: 'Map', items: [
-    { type: 'select', key: 'mapStyle', label: 'Map style', opts: [['dark', 'Dark'], ['darknl', 'Dark (no labels)'], ['sat', 'Satellite'], ['light', 'Light']] },
+    { type: 'select', key: 'mapStyle', label: 'Map style', opts: [['standard', 'Standard'], ['dark', 'Dark'], ['darknl', 'Dark (no labels)'], ['sat', 'Satellite'], ['light', 'Light']] },
     { type: 'seg', key: 'units', label: 'Units', opts: [['km', 'Kilometers'], ['mi', 'Miles']] },
     { type: 'toggle', key: 'trail', label: 'Show trail', desc: 'Draw the path you have moved along' },
     { type: 'toggle', key: 'follow', label: 'Follow marker on routes' },
@@ -463,6 +512,7 @@ const SCHEMA = [
     { type: 'range', key: 'scale', label: 'Interface size', min: 0.8, max: 1.5, step: 0.05, fmt: (v) => Math.round(v * 100) + '%', desk: true },
     { type: 'toggle', key: 'anim', label: 'Animations' },
     { type: 'toggle', key: 'sound', label: 'Sounds', desc: 'Short beeps on teleport, stop and errors' },
+    { type: 'toggle', key: 'haptics', label: 'Haptics', desc: 'Vibration on teleport, stop and errors', nat: true },
     { type: 'toggle', key: 'showBattery', label: 'Show iPhone battery' },
     { type: 'toggle', key: 'alwaysOnTop', label: 'Always on top', desk: true },
     { type: 'toggle', key: 'shortcuts', label: 'Keyboard shortcuts', desc: 'See Help for the full list' },
@@ -480,7 +530,7 @@ function renderSettings() {
     const wrap = document.createElement('div'); wrap.className = 'sgroup'; wrap.innerHTML = `<h4>${g.t}</h4>`;
     const box = document.createElement('div'); box.className = 'sbox'; wrap.appendChild(box);
     g.items.forEach((it) => {
-      const row = document.createElement('div'); row.className = 'srow' + (it.desk ? ' desktop' : '');
+      const row = document.createElement('div'); row.className = 'srow' + (it.desk ? ' desktop' : '') + (it.nat ? ' natonly' : '');
       const title = `<div class="t"><b>${it.label}</b>${it.desc ? `<small>${it.desc}</small>` : ''}</div>`;
       const set = (v) => { cfg[it.key] = v; saveCfg(); applyCfg(); };
       if (it.type === 'toggle') {

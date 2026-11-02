@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Stealth"><meta name="theme-color" content="#141414">
 <link rel="apple-touch-icon" href="icon.png">
-<link rel="stylesheet" href="vendor/leaflet.css"><link rel="stylesheet" href="style.css"></head>
+<link rel="stylesheet" href="vendor/leaflet.css"><link rel="stylesheet" href="vendor/maplibre-gl.css"><link rel="stylesheet" href="style.css"></head>
 <body>
 <div id="map"></div>
 <div id="drag"></div>
@@ -71,13 +71,23 @@
     <tr><td><kbd>L</kbd></td><td>Where am I</td></tr><tr><td><kbd>,</kbd></td><td>Settings</td></tr><tr><td><kbd>D</kbd></td><td>Requirements</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></td><td>Stop simulation</td></tr><tr><td><kbd>Esc</kbd></td><td>Close panels</td></tr></table></div>
   <div class="card"><h3>How it works</h3><p class="mut sm">Click the map and choose <b>Teleport here</b>, or switch to <b>Route</b>, add waypoints and press Start. <b>Stop</b> returns your iPhone to its real location.</p></div>
-  <p class="mut sm" style="text-align:center">Stealth 1.1</p></div>
+  <p class="mut sm" style="text-align:center">Stealth 1.2</p></div>
 
 <div id="searchwrap"><svg viewBox="0 0 24 24" class="si-ico"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Search address or place" autocomplete="off"><ul id="results" class="glass hidden"></ul></div>
 
 <div id="modes" class="glass"><button id="m-tp" class="on"><svg viewBox="0 0 24 24"><path d="m3 11 19-9-9 19-2-8z"/></svg>Teleport</button><button id="m-route"><svg viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>Route</button></div>
 <div id="routebar" class="glass hidden"><span id="rinfo">Click the map to add waypoints</span><button class="mini ac" id="r-go">Start</button><button class="mini" id="r-stop">Pause</button><button class="mini" id="r-reset">Reset</button></div>
 
+<div id="mapctl">
+  <div class="glass col">
+    <button id="b-layers" aria-label="Map style"><svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 12.500 9 5 9-5"/><path d="m3 16.500 9 5 9-5"/></svg></button>
+    <button id="b-3d" class="gl-only" aria-label="3D view"><span>3D</span></button>
+    <button id="b-north" class="gl-only hidden" aria-label="Reset north"><svg viewBox="0 0 24 24"><path d="M12 3 7 20l5-4 5 4z"/></svg></button>
+  </div>
+  <div id="stylemenu" class="glass hidden">
+    <button data-s="standard">Standard</button><button data-s="dark">Dark</button><button data-s="sat">Satellite</button>
+  </div>
+</div>
 <div id="zoom" class="glass"><button id="zi">+</button><button id="zo">&#8722;</button></div>
 <button id="locate" class="glass" data-tip="Where am I"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
 <div id="coords" class="hidden"></div>
@@ -91,5 +101,5 @@
   </div>
 </div>
 <div id="toast" class="glass hidden"></div>
-<script src="vendor/leaflet.js"></script><script src="remote.js"></script><script src="app.js"></script>
+<script src="vendor/leaflet.js"></script><script src="vendor/maplibre-gl.js"></script><script src="remote.js"></script><script src="map.js"></script><script src="app.js"></script>
 </body></html>
