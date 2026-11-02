@@ -85,6 +85,15 @@ final class Bridge: NSObject, ObservableObject, WKScriptMessageHandler, WKUIDele
                 done(["ok": true])
             }
 
+        case "simNotify":
+            let active = (body["active"] as? Bool) ?? false
+            let start = (body["start"] as? NSNumber)?.doubleValue ?? 0
+            let place = (body["place"] as? String) ?? ""
+            DispatchQueue.main.async {
+                SimNotifier.shared.update(active: active, startMs: start, place: place)
+                done(["ok": true])
+            }
+
         case "share":
             let name = (body["name"] as? String) ?? "stealth.txt"
             let text = (body["text"] as? String) ?? ""

@@ -3,6 +3,8 @@ import WebKit
 
 @main
 struct StealthApp: App {
+    init() { SimNotifier.shared.setup() }
+
     var body: some Scene {
         WindowGroup {
             RootView()
