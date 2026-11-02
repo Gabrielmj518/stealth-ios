@@ -85,6 +85,10 @@ final class Bridge: NSObject, ObservableObject, WKScriptMessageHandler, WKUIDele
                 done(["ok": true])
             }
 
+        case "haptic":
+            let kind = (body["kind"] as? String) ?? "tap"
+            DispatchQueue.main.async { Haptics.play(kind); done(["ok": true]) }
+
         case "simNotify":
             let active = (body["active"] as? Bool) ?? false
             let start = (body["start"] as? NSNumber)?.doubleValue ?? 0
