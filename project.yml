@@ -1,0 +1,54 @@
+name: Stealth
+options:
+  bundleIdPrefix: com.stealth
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    ENABLE_BITCODE: NO
+targets:
+  Stealth:
+    type: application
+    platform: iOS
+    sources:
+      - path: Stealth
+        excludes:
+          - "Web/**"
+          - "Resources/Info.plist"
+      - path: Stealth/Web
+        type: folder
+        buildPhase: resources
+      - path: Vendor/idevice/module.modulemap
+        buildPhase: none
+      - path: Vendor/idevice/idevice.h
+        buildPhase: none
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.stealth.location
+        PRODUCT_NAME: Stealth
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_FILE: Stealth/Resources/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+        LIBRARY_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(PROJECT_DIR)/Vendor/idevice"
+        SWIFT_INCLUDE_PATHS: "$(PROJECT_DIR)/Vendor/idevice"
+        HEADER_SEARCH_PATHS: "$(PROJECT_DIR)/Vendor/idevice"
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-lidevice_ffi"
+          - "-lc++"
+          - "-lz"
+          - "-lresolv"
+          - "-framework"
+          - "Security"
+          - "-framework"
+          - "SystemConfiguration"
+          - "-framework"
+          - "CoreFoundation"

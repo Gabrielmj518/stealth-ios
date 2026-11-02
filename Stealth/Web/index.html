@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Stealth</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Stealth"><meta name="theme-color" content="#141414">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="stylesheet" href="vendor/leaflet.css"><link rel="stylesheet" href="style.css"></head>
+<body>
+<div id="map"></div>
+<div id="drag"></div>
+<div id="winbtns"><button data-w="min">&#8212;</button><button data-w="max">&#10530;</button><button data-w="close">&#10005;</button></div>
+
+<div id="topbar"><div id="tools" class="glass">
+  <button id="b-tools" data-tip="Tools"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/></svg></button>
+  <button id="b-saved" data-tip="Places"><svg viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></button>
+  <button id="b-settings" data-tip="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+  <button id="b-app" class="desktop" data-tip="Get the iPhone app"><svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M12 8v6m0 0-2.5-2.5M12 14l2.5-2.5M11 18.5h2"/></svg></button>
+  <button id="b-help" data-tip="Help &amp; shortcuts"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg></button>
+  <button id="b-clear" data-tip="Stop simulation" class="stopi"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></button>
+</div></div>
+
+<button id="device" class="glass" title="Open requirements">
+  <svg viewBox="0 0 24 24" class="ph"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
+  <svg viewBox="0 0 24 24" class="ap" fill="currentColor"><path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.8-3-.8c-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.300.8 1.1 1.700 2.400 2.900 2.300 1.200 0 1.600-.7 3-.7s1.800.7 3 .7 2-1.100 2.800-2.200c.9-1.300 1.200-2.500 1.300-2.600-.1 0-2.500-1-2.500-3.900zM14.100 5.800c.6-.8 1.100-1.800.9-2.800-.9 0-2 .6-2.600 1.400-.6.700-1.100 1.700-.9 2.700 1 .1 2-.5 2.600-1.300z"/></svg>
+  <div class="dv"><b id="dev-name">No Device</b><small id="dev-sub">Connect an iPhone</small></div>
+  <span id="bat" class="bat hidden"><span class="bt"><i id="bat-fill"></i></span><em id="bat-pct"></em><svg id="bat-bolt" class="bolt hidden" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span>
+  <i id="dev-dot" class="dot red"></i>
+</button>
+
+<div id="req" class="glass panel hidden">
+  <div class="ph-head"><h2>Requirements</h2><button data-close="req">&#10005;</button></div>
+  <div class="card" id="card-dev"><small class="cap">DEVICE</small><p class="row"><i id="r-dot" class="dot red"></i><span id="r-state">Not connected</span></p>
+    <p class="mut" id="r-help">Connect your iPhone with USB, unlock it, and tap Trust if asked.</p>
+    <a href="#" data-url="https://apps.microsoft.com/detail/9np83lwlpz9k">Get Apple Devices &#8599;</a></div>
+  <div class="card" id="card-req"><h3>iPhone requirements</h3><p class="mut sm" id="req-text">iOS 17.4 or later and iPhone Developer Mode are required, including for Windows spoofing.</p>
+    <button class="btn" data-url="https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device">Developer Mode instructions</button></div>
+  <ul id="n-checks" class="native-only">
+    <li data-nk="pairing"><i></i><div><b>Pairing file</b><small>Create it on a PC with idevice_pair (RPPairing), then import it here</small></div><button class="mini" id="n-import">Import</button><button class="mini" id="n-paste">Paste</button></li>
+    <li data-nk="vpn"><i></i><div><b>LocalDevVPN connected</b><small>Install it, open it and turn it on</small></div><button class="mini" id="n-vpn">Open</button></li>
+  </ul>
+  <ul id="checks">
+    <li data-k="admin"><i></i><div><b>Administrator rights</b><small>Needed to connect to your iPhone</small></div><button class="mini" id="b-admin">Run as admin</button></li>
+    <li data-k="driver"><i></i><div><b>Apple device driver</b><small>Install Apple Devices from the Microsoft Store</small></div></li>
+    <li data-k="pmd3"><i></i><div><b>Python + pymobiledevice3</b><small>Required engine (Python 3.9+)</small></div><button class="mini" id="b-install">Install</button></li>
+    <li data-k="usb"><i></i><div><b>iPhone plugged in</b><small>USB cable, unlocked, Trust tapped</small></div></li>
+    <li data-k="internet"><i></i><div><b>Internet connection</b><small>Used for maps and downloads</small></div></li>
+    <li data-k="link"><i></i><div><b>Phone link active</b><small>Created automatically once the phone is trusted</small></div><button class="mini" id="b-link">Start</button></li>
+  </ul>
+  <div class="card" id="remote-card" style="margin-top:12px"><small class="cap">IPHONE REMOTE</small><p class="mut sm" style="margin-top:8px">On your iPhone (same Wi-Fi) open Safari and go to:</p><p><b id="rm-url">…</b></p><p class="mut sm">PIN: <b id="rm-pin" style="color:#fff;letter-spacing:.1em">------</b></p><p class="mut sm">Then Share → Add to Home Screen.</p></div>
+  <button class="btn wide" id="b-recheck">Re-check</button>
+  <p class="cap2" id="msg"></p>
+</div>
+
+<div id="phoneapp" class="glass panel hidden"><div class="ph-head"><h2>iPhone app</h2><button data-close="phoneapp">&#10005;</button></div>
+  <p class="mut sm" style="margin-bottom:14px">Run Stealth on the iPhone itself: same map and controls, no PC needed once it is set up. It works through <b>LocalDevVPN</b> and a pairing file.</p>
+  <ol class="steps">
+    <li><span class="n">1</span><div><b>LocalDevVPN</b><small>Free loopback VPN from the App Store. Keep it ON while spoofing.</small></div><button class="btn ac" data-url="https://apps.apple.com/app/id6755608044">Open</button></li>
+    <li><span class="n">2</span><div><b>Download Stealth for iPhone</b><small>Your build on GitHub (user/repo). Saved in Downloads.</small><input id="gh-repo" class="inp" placeholder="user/stealth-ios" spellcheck="false" autocomplete="off"></div><button class="btn ac" id="b-dl">Download</button></li>
+    <li><span class="n">3</span><div><b>Install it on the iPhone</b><small>iloader: sign in with your Apple ID and install the .ipa over USB.</small></div><button class="btn" data-url="https://github.com/nab138/iloader">Get iloader</button></li>
+    <li><span class="n">4</span><div><b>Pairing file</b><small>Create it with idevice_pair, then import it in the app once.</small></div><button class="btn" data-url="https://github.com/jkcoxson/idevice_pair">Get tool</button></li>
+    <li><span class="n">5</span><div><b>Alternative: Locus</b><small>A ready-made open-source app that does the same.</small></div><button class="btn" data-url="https://github.com/ChrisMack32/Locus/releases/latest">Open</button></li>
+  </ol>
+  <p class="cap2" id="dl-msg"></p>
+  <p class="mut sm">Apps installed with a free Apple ID expire after 7 days and need to be re-signed.</p></div>
+<div id="tools-p" class="glass panel auto hidden"><div class="ph-head"><h2>Tools</h2><button data-close="tools-p">&#10005;</button></div><div id="tools-list"></div></div>
+<div id="saved" class="glass panel auto hidden"><div class="ph-head"><h2>Places</h2><button data-close="saved">&#10005;</button></div>
+  <div class="seg" id="saved-tabs"><button data-t="saved" class="on">Saved</button><button data-t="recent">Recent</button></div><ul id="saved-list"></ul><p class="mut sm" id="saved-hint"></p></div>
+<div id="settings" class="glass panel hidden"><div class="ph-head"><h2>Settings</h2><button data-close="settings">&#10005;</button></div><div id="set-body"></div></div>
+<div id="help" class="glass panel auto hidden"><div class="ph-head"><h2>Help</h2><button data-close="help">&#10005;</button></div>
+  <div class="card"><h3>Shortcuts</h3><table class="keys">
+    <tr><td><kbd>/</kbd> <kbd>Ctrl</kbd>+<kbd>K</kbd></td><td>Search</td></tr><tr><td><kbd>T</kbd> / <kbd>R</kbd></td><td>Teleport / Route mode</td></tr>
+    <tr><td><kbd>L</kbd></td><td>Where am I</td></tr><tr><td><kbd>,</kbd></td><td>Settings</td></tr><tr><td><kbd>D</kbd></td><td>Requirements</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></td><td>Stop simulation</td></tr><tr><td><kbd>Esc</kbd></td><td>Close panels</td></tr></table></div>
+  <div class="card"><h3>How it works</h3><p class="mut sm">Click the map and choose <b>Teleport here</b>, or switch to <b>Route</b>, add waypoints and press Start. <b>Stop</b> returns your iPhone to its real location.</p></div>
+  <p class="mut sm" style="text-align:center">Stealth 1.1</p></div>
+
+<div id="searchwrap"><svg viewBox="0 0 24 24" class="si-ico"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Search address or place" autocomplete="off"><ul id="results" class="glass hidden"></ul></div>
+
+<div id="modes" class="glass"><button id="m-tp" class="on"><svg viewBox="0 0 24 24"><path d="m3 11 19-9-9 19-2-8z"/></svg>Teleport</button><button id="m-route"><svg viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>Route</button></div>
+<div id="routebar" class="glass hidden"><span id="rinfo">Click the map to add waypoints</span><button class="mini ac" id="r-go">Start</button><button class="mini" id="r-stop">Pause</button><button class="mini" id="r-reset">Reset</button></div>
+
+<div id="zoom" class="glass"><button id="zi">+</button><button id="zo">&#8722;</button></div>
+<button id="locate" class="glass" data-tip="Where am I"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+<div id="coords" class="hidden"></div>
+
+<div id="simbar" class="glass hidden">
+  <div class="sim-ico"><i class="ring"></i><svg viewBox="0 0 24 24"><path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg></div>
+  <div class="sim-info"><b>Location simulated</b><small id="sim-place">—</small></div>
+  <div class="sim-time"><span id="sim-time">00:00:00</span><small id="sim-sub">elapsed</small></div>
+  <button id="sim-stop" class="stopbtn"><span class="sq"><i></i></span><span id="sim-stop-t">Stop</span></button>
+</div>
+<div id="toast" class="glass hidden"></div>
+<script src="vendor/leaflet.js"></script><script src="remote.js"></script><script src="app.js"></script>
+</body></html>
