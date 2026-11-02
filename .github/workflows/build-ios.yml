@@ -1,0 +1,81 @@
+name: Build iOS app
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Checkout idevice (pinned version)
+        uses: actions/checkout@v4
+        with:
+          repository: jkcoxson/idevice
+          ref: 89702099f4d7552f704f93b4526756abda319ceb
+          path: idevice-src
+
+      - name: Install Rust (iOS target)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add aarch64-apple-ios
+          rustc --version
+
+      - name: Build the idevice library for iPhone
+        working-directory: idevice-src/ffi
+        run: |
+          cargo build --release --target aarch64-apple-ios --no-default-features \
+            --features "ring,tunnel_tcp_stack,core_device_proxy,rsd,remote_pairing,dvt,location_simulation,xpc"
+          mkdir -p "$GITHUB_WORKSPACE/Vendor/idevice"
+          cp ../target/aarch64-apple-ios/release/libidevice_ffi.a "$GITHUB_WORKSPACE/Vendor/idevice/"
+          cp idevice.h "$GITHUB_WORKSPACE/Vendor/idevice/"
+          ls -la "$GITHUB_WORKSPACE/Vendor/idevice"
+
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build the app (unsigned)
+        run: |
+          xcodebuild -project Stealth.xcodeproj -scheme Stealth -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tee build.log | tail -n 60
+
+      - name: Package the IPA
+        run: |
+          rm -rf Payload && mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/Stealth.app Payload/
+          zip -qr Stealth.ipa Payload
+          ls -lh Stealth.ipa
+
+      - name: Upload the IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stealth-ipa
+          path: Stealth.ipa
+
+      - name: Publish a release (stable download link for the Windows app)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Stealth build ${{ github.run_number }}
+          files: Stealth.ipa
+
+      - name: Upload the build log (useful if something failed)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
