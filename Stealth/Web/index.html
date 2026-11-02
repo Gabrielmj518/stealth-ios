@@ -83,10 +83,12 @@
 <div id="coords" class="hidden"></div>
 
 <div id="simbar" class="glass hidden">
-  <div class="sim-ico"><i class="ring"></i><svg viewBox="0 0 24 24"><path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg></div>
-  <div class="sim-info"><b>Location simulated</b><small id="sim-place">—</small></div>
-  <div class="sim-time"><span id="sim-time">00:00:00</span><small id="sim-sub">elapsed</small></div>
-  <button id="sim-stop" class="stopbtn"><span class="sq"><i></i></span><span id="sim-stop-t">Stop</span></button>
+  <div class="sim-tag"><i class="pulse"></i>SIMULATION ACTIVE</div>
+  <div class="sim-info"><b id="sim-place">—</b><small id="sim-coords"></small></div>
+  <div class="sim-row">
+    <div class="sim-chip"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2h5"/></svg><span id="sim-time">00:00:00</span><small id="sim-sub">elapsed</small></div>
+    <button id="sim-stop" class="stopbtn"><span class="sq"><i></i></span><span id="sim-stop-t">Stop</span></button>
+  </div>
 </div>
 <div id="toast" class="glass hidden"></div>
 <script src="vendor/leaflet.js"></script><script src="remote.js"></script><script src="app.js"></script>

@@ -102,18 +102,21 @@ select{background:#24242a;color:var(--tx);border:1px solid var(--line2);border-r
 kbd{background:#2a2a31;border:1px solid #3a3a42;border-bottom-width:2px;border-radius:5px;padding:1px 6px;font:11px "Cascadia Mono",Consolas,monospace;color:#ddd}
 .tool{display:flex;align-items:center;gap:12px;width:100%;padding:11px 10px;border-radius:10px;text-align:left}.tool:hover{background:#ffffff0c}.tool .ti{width:34px;height:34px;border-radius:9px;background:#24242a;display:grid;place-items:center;color:var(--ac)}.tool b{display:block;font-weight:500}.tool small{color:#7d7d89;font-size:11px}
 /* simulation bar */
-#simbar{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:16px;padding:10px 10px 10px 14px;min-width:500px;border-radius:18px;
-  background:linear-gradient(135deg,rgba(var(--ac-rgb),.16),rgba(20,20,24,.96) 55%);border:1px solid rgba(var(--ac-rgb),.38);box-shadow:0 14px 44px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.03) inset;animation:rise .25s cubic-bezier(.2,.9,.3,1.2)}
+#simbar{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);z-index:20;display:flex;flex-direction:column;gap:8px;padding:11px 12px 12px;width:350px;max-width:calc(100vw - 20px);border-radius:20px;
+  background:linear-gradient(135deg,rgba(var(--ac-rgb),.14),rgba(20,20,24,.96) 60%);border:1px solid rgba(var(--ac-rgb),.32);box-shadow:0 14px 44px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.03) inset;animation:rise .25s cubic-bezier(.2,.9,.3,1.2)}
 @keyframes rise{from{opacity:0;transform:translate(-50%,14px)}to{opacity:1;transform:translate(-50%,0)}}
-.sim-ico{position:relative;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(var(--ac-rgb),.18);color:var(--ac);flex:none}
-.sim-ico .ring{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(var(--ac-rgb),.6);animation:ping 1.8s ease-out infinite}@keyframes ping{0%{transform:scale(1);opacity:.9}100%{transform:scale(1.7);opacity:0}}
-.sim-info{flex:1;min-width:0;line-height:1.25}.sim-info b{display:block;font-size:13px}.sim-info small{display:block;color:var(--mut);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
-.sim-time{text-align:right;line-height:1.1}.sim-time span{display:block;font:600 24px/1 "Cascadia Mono",Consolas,monospace;letter-spacing:.03em;font-variant-numeric:tabular-nums;color:#fff}.sim-time small{font-size:10px;color:var(--mut);letter-spacing:.08em;text-transform:uppercase}
-.stopbtn{display:flex;align-items:center;gap:10px;height:46px;padding:0 20px 0 8px;border-radius:14px;font-weight:700;font-size:14px;color:#fff;letter-spacing:.02em;
-  background:linear-gradient(180deg,#f87171 0%,#dc2626 100%);box-shadow:0 8px 22px rgba(239,68,68,.35),inset 0 1px 0 rgba(255,255,255,.35)}
-.stopbtn .sq{width:30px;height:30px;border-radius:10px;background:rgba(0,0,0,.22);display:grid;place-items:center}.stopbtn .sq i{width:11px;height:11px;border-radius:3px;background:#fff;display:block}
-.stopbtn:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(239,68,68,.5),inset 0 1px 0 rgba(255,255,255,.4)}.stopbtn:active{transform:scale(.97)}
-.stopbtn:disabled{opacity:.7;cursor:wait}.stopbtn.busy .sq i{animation:spin 1s linear infinite;border-radius:50%;background:transparent;border:2px solid #fff;border-top-color:transparent;width:14px;height:14px}@keyframes spin{to{transform:rotate(360deg)}}
+.sim-tag{display:flex;align-items:center;justify-content:center;gap:7px;font-size:9.5px;font-weight:600;letter-spacing:.18em;color:var(--mut)}
+.sim-tag .pulse{width:6px;height:6px;border-radius:50%;background:var(--grn);animation:blink 1.6s ease-in-out infinite}@keyframes blink{50%{opacity:.25}}
+.sim-info{min-width:0;line-height:1.3;text-align:center}.sim-info b{display:block;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sim-info small{display:block;color:var(--mut);font:11px "Cascadia Mono",Consolas,ui-monospace,monospace;min-height:14px}
+.sim-row{display:flex;gap:8px}
+.sim-chip{flex:1;min-width:0;height:36px;border-radius:12px;background:rgba(var(--ac-rgb),.12);color:var(--ac);display:flex;align-items:center;justify-content:center;gap:7px}
+.sim-chip svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.sim-chip span{font-weight:600;font-size:13.5px;font-variant-numeric:tabular-nums;letter-spacing:.02em}.sim-chip small{font-size:9.5px;color:var(--mut);letter-spacing:.06em;text-transform:uppercase}
+.stopbtn{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;height:36px;padding:0;border-radius:12px;font-weight:600;font-size:13.5px;color:#f87171;background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.32)}
+.stopbtn .sq{display:grid;place-items:center}.stopbtn .sq i{width:10px;height:10px;border-radius:2.5px;background:#f87171;display:block}
+.stopbtn:hover{background:rgba(239,68,68,.24)}.stopbtn:active{transform:scale(.97)}
+.stopbtn:disabled{opacity:.7;cursor:wait}.stopbtn.busy .sq i{animation:spin 1s linear infinite;border-radius:50%;background:transparent;border:2px solid #f87171;border-top-color:transparent;width:12px;height:12px}@keyframes spin{to{transform:rotate(360deg)}}
 .osm-dark .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.75) contrast(.9) saturate(.5)}
 /* density / remote / mobile */
 .compact .srow{padding:8px 12px;min-height:42px}.compact .card{padding:12px}.compact #device{height:46px}.compact #search{height:48px}.compact #modes{height:48px}
@@ -127,7 +130,8 @@ kbd{background:#2a2a31;border:1px solid #3a3a42;border-bottom-width:2px;border-r
   #routebar{top:auto;right:auto;left:10px;bottom:calc(env(safe-area-inset-bottom) + 76px)}
   #zoom{top:auto;right:10px;bottom:calc(env(safe-area-inset-bottom) + 78px)}
   #locate{top:auto;right:10px;bottom:calc(env(safe-area-inset-bottom) + 18px)}
-  #simbar{min-width:0;left:10px;right:10px;transform:none;bottom:calc(env(safe-area-inset-bottom) + 130px);gap:10px;padding:8px 8px 8px 10px;animation:none}.sim-info small{max-width:34vw}.sim-time span{font-size:17px}.stopbtn{height:42px;padding:0 14px 0 6px}
+  #simbar{width:auto;max-width:none;left:10px;right:10px;transform:none;bottom:calc(env(safe-area-inset-bottom) + 76px);animation:none}
+  body:has(#simbar:not(.hidden)) #zoom{display:none}
   #toast{bottom:calc(env(safe-area-inset-bottom) + 200px)}#coords{display:none}
 }
 

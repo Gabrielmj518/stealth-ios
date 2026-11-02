@@ -161,8 +161,8 @@ async function simOn(reset) {
   if (reset || !simStart) { simStart = Date.now(); autoStopAt = cfg.autoStop ? simStart + cfg.autoStop * 60000 : null; }
   $('#simbar').classList.remove('hidden');
   if (current) {
-    const at = current; $('#sim-place').textContent = fmt(at);
-    if (reset) placeName(at).then((n) => { if (n && current === at) { $('#sim-place').textContent = n + ' · ' + fmt(at); pushSim(); } });
+    const at = current; $('#sim-place').textContent = fmt(at); $('#sim-coords').textContent = '';
+    if (reset) placeName(at).then((n) => { if (n && current === at) { $('#sim-place').textContent = n; $('#sim-coords').textContent = fmt(at); pushSim(); } });
   }
   renderSim(); clearInterval(simTimer); simTimer = setInterval(renderSim, 1000); pushAppCfg(); pushSim();
 }
