@@ -61,24 +61,20 @@ final class LocationEngine {
         sim = nil; remote = nil; handshake = nil; adapter = nil
     }
 
-    private func openLocked(_ pairingPath: String, _ ip: String) -> EngineFailure? {
+    private var lastGood: (ip: String, port: UInt16)?
+
+    private func makeAddress(_ ip: String, _ port: UInt16) -> sockaddr_in? {
         var address = sockaddr_in()
         address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         address.sin_family = sa_family_t(AF_INET)
-        address.sin_port = Self.tunnelPort.bigEndian
-        guard inet_pton(AF_INET, ip, &address.sin_addr) == 1 else {
-            return EngineFailure(step: "The tunnel IP is not valid", detail: ip)
-        }
+        address.sin_port = port.bigEndian
+        guard inet_pton(AF_INET, ip, &address.sin_addr) == 1 else { return nil }
+        return address
+    }
 
-        var pairing: OpaquePointer?
-        if let e = rp_pairing_file_read(pairingPath, &pairing) {
-            return EngineFailure(step: "Could not read the pairing file. Create an RPPairing file with idevice_pair and import it again", detail: describe(e))
-        }
-        guard let pairing else {
-            return EngineFailure(step: "Could not read the pairing file", detail: "empty handle")
-        }
-        defer { rp_pairing_file_free(pairing) }
-
+    /// Returns nil on success, or the error text.
+    private func openTunnel(_ pairing: OpaquePointer, _ ip: String, _ port: UInt16) -> String? {
+        guard var address = makeAddress(ip, port) else { return "invalid IP \(ip)" }
         let tunnelError = withUnsafePointer(to: &address) { pointer in
             pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPointer in
                 tunnel_create_rppairing(sockPointer,
@@ -93,7 +89,64 @@ final class LocationEngine {
         }
         if let e = tunnelError {
             let d = describe(e); teardown()
-            return EngineFailure(step: "Could not open the developer tunnel. Is LocalDevVPN connected and Developer Mode on?", detail: d)
+            return d
+        }
+        return nil
+    }
+
+    private func openLocked(_ pairingPath: String, _ ip: String) -> EngineFailure? {
+        guard makeAddress(ip, Self.tunnelPort) != nil else {
+            return EngineFailure(step: "The tunnel IP is not valid", detail: ip)
+        }
+
+        var pairing: OpaquePointer?
+        if let e = rp_pairing_file_read(pairingPath, &pairing) {
+            return EngineFailure(step: "Could not read the pairing file. Create an RPPairing file with idevice_pair and import it again", detail: describe(e))
+        }
+        guard let pairing else {
+            return EngineFailure(step: "Could not read the pairing file", detail: "empty handle")
+        }
+        defer { rp_pairing_file_free(pairing) }
+
+        var connected = false
+        var log: [String] = []
+
+        // 1. The address that worked last time.
+        if let good = lastGood {
+            if let err = openTunnel(pairing, good.ip, good.port) { log.append("\(good.ip):\(good.port) -> \(err)") }
+            else { connected = true }
+        }
+
+        // 2. Discover the real port with Bonjour, then fall back to the old fixed port.
+        if !connected {
+            let found = PortDiscovery.find()
+            var candidates: [(String, UInt16)] = []
+            var seen = Set<String>()
+            func add(_ host: String, _ port: UInt16) {
+                if seen.insert("\(host):\(port)").inserted { candidates.append((host, port)) }
+            }
+            for f in found {
+                add(ip, f.port)
+                if let h = f.host { add(h, f.port) }
+            }
+            add(ip, Self.tunnelPort)
+            log.append("found services: " + (found.isEmpty ? "none" : found.map { "\($0.host ?? "?"):\($0.port)" }.joined(separator: ", ")))
+
+            for (host, port) in candidates {
+                if let err = openTunnel(pairing, host, port) {
+                    log.append("\(host):\(port) -> \(err)")
+                } else {
+                    lastGood = (host, port)
+                    connected = true
+                    break
+                }
+            }
+        }
+
+        if !connected {
+            lastGood = nil
+            return EngineFailure(step: "Could not open the developer tunnel. Is LocalDevVPN connected and Developer Mode on?",
+                                 detail: log.joined(separator: " | "))
         }
         if let e = remote_server_connect_rsd(adapter, handshake, &remote) {
             let d = describe(e); teardown()
