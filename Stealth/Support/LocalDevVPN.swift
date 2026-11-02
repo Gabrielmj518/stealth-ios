@@ -8,10 +8,10 @@ enum LocalDevVPN {
 
     static var isInstalled: Bool { UIApplication.shared.canOpenURL(URL(string: "localdevvpn://")!) }
 
-    /// LocalDevVPN adds a 10.7.0.x address to a utun interface while it is connected.
+    /// LocalDevVPN adds a 10.7.x.x address to a utun interface while it is connected
+    /// (newer versions use 10.7.1.1 for the tunnel, older ones 10.7.0.x).
     static func isConnected(ip: String) -> Bool {
-        let prefix = ip.split(separator: ".").dropLast().joined(separator: ".") + "."
-        return ipv4Addresses().contains { $0 == ip || $0.hasPrefix(prefix) }
+        return ipv4Addresses().contains { $0 == ip || $0.hasPrefix("10.7.") }
     }
 
     static func openOrInstall() {
