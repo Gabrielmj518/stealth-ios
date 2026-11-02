@@ -27,6 +27,11 @@
 	<string>Stealth uses your real location to center the map and to keep the app running while a simulated location is active.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Stealth connects to the on-device developer tunnel (LocalDevVPN) to change the location of this iPhone.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_remotepairing._tcp</string>
+		<string>_remotepairing-manual-pairing._tcp</string>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array><string>location</string></array>
 	<key>ITSAppUsesNonExemptEncryption</key><false/>
