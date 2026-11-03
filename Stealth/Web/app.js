@@ -270,6 +270,21 @@ if (stealth.native) {
   $('#n-import').onclick = () => note(stealth.importPairing(), 'Pairing file imported');
   $('#n-paste').onclick = () => note(stealth.pastePairing(), 'Pairing file imported from clipboard');
   $('#n-vpn').onclick = () => stealth.openVPN();
+  // ---- pair this iPhone with itself (iOS 27, no computer) ----
+  const pairBtn = $('#n-pair');
+  const pairReset = () => { $('#n-pin').classList.add('hidden'); pairBtn.classList.remove('hidden'); pairBtn.disabled = false; pairBtn.textContent = 'Pair this iPhone'; };
+  window.__stealthPin = (pin) => { $('#n-pin-code').textContent = pin; $('#n-pin').classList.remove('hidden'); pairBtn.classList.add('hidden'); beep('ok'); };
+  window.__stealthPairDone = (r) => {
+    pairReset();
+    if (r && r.ok) { beep('ok'); toast('Paired! Now connect LocalDevVPN and teleport', 6000); recheck(); }
+    else if (!(r && /cancel/i.test(r.error || ''))) { beep('err'); toast('⚠ ' + ((r && r.error) || 'Pairing failed'), 12000); }
+  };
+  pairBtn.onclick = async () => {
+    pairBtn.disabled = true; pairBtn.textContent = 'Now open Settings → Developer Mode → Pair with Host';
+    const r = await stealth.pairStart();
+    if (!r.ok) window.__stealthPairDone(r);
+  };
+  $('#n-pair-cancel').onclick = () => stealth.pairCancel();
 }
 if (stealth.remoteInfo) stealth.remoteInfo().then((i) => { $('#rm-url').textContent = i.urls.length ? i.urls.join('  ·  ') : 'Network unavailable'; $('#rm-pin').textContent = i.pin; });
 recheck(); setInterval(() => { if (!document.hidden) recheck(); }, 10000);

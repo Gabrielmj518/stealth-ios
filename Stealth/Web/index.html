@@ -34,9 +34,15 @@
   <div class="card" id="card-req"><h3>iPhone requirements</h3><p class="mut sm" id="req-text">iOS 17.4 or later and iPhone Developer Mode are required, including for Windows spoofing.</p>
     <button class="btn" data-url="https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device">Developer Mode instructions</button></div>
   <ul id="n-checks" class="native-only">
-    <li data-nk="pairing"><i></i><div><b>Pairing file</b><small>Create it on a PC with idevice_pair (RPPairing), then import it here</small></div><button class="mini" id="n-import">Import</button><button class="mini" id="n-paste">Paste</button></li>
+    <li data-nk="pairing"><i></i><div><b>Pairing file</b><small>iOS 27: tap “Pair this iPhone” below. Older iOS: create it on a PC with idevice_pair, then import it here</small></div><button class="mini" id="n-import">Import</button><button class="mini" id="n-paste">Paste</button></li>
     <li data-nk="vpn"><i></i><div><b>LocalDevVPN connected</b><small>Install it, open it and turn it on</small></div><button class="mini" id="n-vpn">Open</button></li>
   </ul>
+  <div id="n-pairc" class="card native-only">
+    <h3>No computer? Pair this iPhone</h3>
+    <p class="mut sm">Needs iOS 27. Tap the button, then open <b>Settings → Privacy &amp; Security → Developer Mode → Pair with Host</b>, choose <b>Stealth</b> and type the code you get here (it also arrives as a notification).</p>
+    <button class="btn ac wide" id="n-pair">Pair this iPhone</button>
+    <div id="n-pin" class="hidden"><small class="mut">Type this code in Settings</small><b id="n-pin-code">······</b><button class="btn" id="n-pair-cancel">Cancel</button></div>
+  </div>
   <ul id="checks">
     <li data-k="admin"><i></i><div><b>Administrator rights</b><small>Needed to connect to your iPhone</small></div><button class="mini" id="b-admin">Run as admin</button></li>
     <li data-k="driver"><i></i><div><b>Apple device driver</b><small>Install Apple Devices from the Microsoft Store</small></div></li>

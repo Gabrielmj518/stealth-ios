@@ -20,6 +20,8 @@ if (!window.stealth && window.webkit && window.webkit.messageHandlers && window.
     appConfig: (c) => call('appConfig', c || {}),
     simNotify: (c) => call('simNotify', c || {}),
     haptic: (kind) => { call('haptic', { kind }); },
+    pairStart: () => call('pairStart'),
+    pairCancel: () => call('pairCancel'),
     openExternal: (url) => call('openExternal', { url }),
     installDeps: async () => ({ ok: false, error: 'Not needed on iPhone' }), startLink: async () => ({ ok: false }),
     restartAdmin() {}, win() {}

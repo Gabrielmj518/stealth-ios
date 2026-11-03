@@ -21,6 +21,17 @@ final class Bridge: NSObject, ObservableObject, WKScriptMessageHandler, WKUIDele
         handle(cmd, body) { [weak self] value in self?.reply(id, value) }
     }
 
+    /// Calls a global JavaScript function with one JSON argument.
+    private func emit(_ function: String, _ value: Any) {
+        let wrapped: Any = value is String ? ["v": value] : value
+        guard let data = try? JSONSerialization.data(withJSONObject: wrapped),
+              let json = String(data: data, encoding: .utf8) else { return }
+        let arg = value is String ? "\(json).v" : json
+        DispatchQueue.main.async { [weak self] in
+            self?.webView?.evaluateJavaScript("window.\(function) && window.\(function)(\(arg))", completionHandler: nil)
+        }
+    }
+
     private func reply(_ id: Int, _ value: [String: Any]) {
         guard let data = try? JSONSerialization.data(withJSONObject: value),
               let json = String(data: data, encoding: .utf8) else { return }
@@ -84,6 +95,22 @@ final class Bridge: NSObject, ObservableObject, WKScriptMessageHandler, WKUIDele
                 if active { self.keepAlive.start() }
                 done(["ok": true])
             }
+
+        case "pairStart":
+            DispatchQueue.main.async {
+                guard OnDevicePairing.isSupported else { return done(["ok": false, "error": "Pairing on the iPhone needs iOS 27 or later. On older versions, create the pairing file on a computer."]) }
+                guard !OnDevicePairing.shared.isRunning else { return done(["ok": true]) }
+                self.keepAlive.start()      // keeps Stealth running while the user is in Settings
+                OnDevicePairing.shared.onPin = { [weak self] pin in self?.emit("__stealthPin", pin) }
+                OnDevicePairing.shared.onFinish = { [weak self] error in
+                    self?.emit("__stealthPairDone", error == nil ? ["ok": true] : ["ok": false, "error": error ?? ""])
+                }
+                OnDevicePairing.shared.start(store: self.pairing)
+                done(["ok": true])
+            }
+
+        case "pairCancel":
+            DispatchQueue.main.async { OnDevicePairing.shared.cancel(); done(["ok": true]) }
 
         case "haptic":
             let kind = (body["kind"] as? String) ?? "tap"

@@ -22,6 +22,8 @@ final class PairingStore {
     var path: String { url.path }
     var hasFile: Bool { FileManager.default.fileExists(atPath: url.path) }
 
+    func ensureDirectory() { try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true) }
+
     func importFile(at source: URL) throws {
         let access = source.startAccessingSecurityScopedResource()
         defer { if access { source.stopAccessingSecurityScopedResource() } }
