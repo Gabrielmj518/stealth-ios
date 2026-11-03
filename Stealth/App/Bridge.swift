@@ -102,8 +102,10 @@ final class Bridge: NSObject, ObservableObject, WKScriptMessageHandler, WKUIDele
                 guard !OnDevicePairing.shared.isRunning else { return done(["ok": true]) }
                 self.keepAlive.start()      // keeps Stealth running while the user is in Settings
                 OnDevicePairing.shared.onPin = { [weak self] pin in self?.emit("__stealthPin", pin) }
-                OnDevicePairing.shared.onFinish = { [weak self] error in
-                    self?.emit("__stealthPairDone", error == nil ? ["ok": true] : ["ok": false, "error": error ?? ""])
+                OnDevicePairing.shared.onFinish = { [weak self] (error: String?) in
+                    var result: [String: Any] = ["ok": error == nil]
+                    if let error { result["error"] = error }
+                    self?.emit("__stealthPairDone", result)
                 }
                 OnDevicePairing.shared.start(store: self.pairing)
                 done(["ok": true])
