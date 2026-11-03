@@ -189,16 +189,23 @@ jobs:
           xcodegen generate
 
       - name: Build the app (unsigned)
+        shell: bash
         run: |
+          set -o pipefail
           xcodebuild -project Stealth.xcodeproj -scheme Stealth -configuration Release \
             -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            build | tee build.log | tail -n 60
+            build 2>&1 | tee build.log | tail -n 60
+
+      - name: Show the compile errors (if any)
+        if: failure()
+        run: grep -n "error:" build.log | sort -u -k2 | head -40 || true
 
       - name: Package the IPA
         run: |
           rm -rf Payload && mkdir Payload
           cp -R build/Build/Products/Release-iphoneos/Stealth.app Payload/
+          test -f Payload/Stealth.app/Info.plist || { echo "The build is incomplete: Info.plist is missing"; exit 1; }
           zip -qr Stealth.ipa Payload
           ls -lh Stealth.ipa
 
