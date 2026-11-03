@@ -23,6 +23,148 @@ jobs:
           ref: 89702099f4d7552f704f93b4526756abda319ceb
           path: idevice-src
 
+      - name: Apply the Stealth patch (pairing on the iPhone itself)
+        run: |
+          cat >> idevice-src/ffi/src/pairable_host.rs <<'STEALTH_PATCH_EOF'
+
+          // ---------------------------------------------------------------------------
+          // Stealth patch: same as `pairable_host_accept`, but the CALLER advertises the
+          // Bonjour service. On iOS, raw multicast mDNS is blocked for normal apps, while
+          // the system Bonjour service (NetService) works with just the Local Network
+          // permission. The `advertise_callback` receives everything needed to publish it.
+          // ---------------------------------------------------------------------------
+
+          /// Pairs this device with the device that connects (iOS 27 "Pair with Host").
+          ///
+          /// `advertise_callback(port, identifier, txt, context)` is invoked once the listener
+          /// is bound. `txt` holds the TXT records as "key=value" lines separated by '\n'.
+          /// `pin_callback` receives the 6-digit code the user types on the other side.
+          ///
+          /// # Safety
+          /// `name` must be a valid C string, `model` NULL or a valid C string, `cancel` NULL
+          /// or a live token, and `out_pairing_file` a valid writable pointer.
+          #[unsafe(no_mangle)]
+          #[allow(clippy::too_many_arguments)]
+          pub unsafe extern "C" fn stealth_pairable_host_accept(
+              name: *const c_char,
+              model: *const c_char,
+              port: u16,
+              advertise_callback: Option<
+                  extern "C" fn(
+                      port: u16,
+                      identifier: *const c_char,
+                      txt: *const c_char,
+                      context: *mut c_void,
+                  ),
+              >,
+              pin_callback: Option<extern "C" fn(pin: *const c_char, context: *mut c_void)>,
+              context: *mut c_void,
+              cancel: *const PairableHostCancel,
+              out_pairing_file: *mut *mut RpPairingFileHandle,
+          ) -> *mut IdeviceFfiError {
+              if name.is_null() || out_pairing_file.is_null() {
+                  return ffi_err!(IdeviceError::FfiInvalidArg);
+              }
+
+              let name = match unsafe { CStr::from_ptr(name) }.to_str() {
+                  Ok(s) => s.to_string(),
+                  Err(_) => return ffi_err!(IdeviceError::FfiInvalidString),
+              };
+              let model = if model.is_null() {
+                  "Mac17,7".to_string()
+              } else {
+                  match unsafe { CStr::from_ptr(model) }.to_str() {
+                      Ok(s) => s.to_string(),
+                      Err(_) => return ffi_err!(IdeviceError::FfiInvalidString),
+                  }
+              };
+
+              let cancel = if cancel.is_null() {
+                  None
+              } else {
+                  Some(unsafe { &*cancel }.0.clone())
+              };
+
+              let ctx = PinCtx(context);
+
+              let res = run_sync_local(async move {
+                  if cancel.as_ref().is_some_and(|c| c.is_canceled()) {
+                      return Err(IdeviceError::CanceledByUser);
+                  }
+
+                  let listener = tokio::net::TcpListener::bind((Ipv4Addr::UNSPECIFIED, port))
+                      .await
+                      .map_err(|e| IdeviceError::InternalError(format!("bind: {e}")))?;
+                  let port = listener
+                      .local_addr()
+                      .map_err(|e| IdeviceError::InternalError(format!("{e}")))?
+                      .port();
+
+                  let mut pairing_file = RpPairingFile::generate(&name);
+                  let host_info = PairableHostInfo::generate(&name, &model);
+                  let service_identifier = pairing_file.identifier.clone();
+
+                  // Give the caller what it needs to publish the Bonjour service itself.
+                  if let Some(cb) = advertise_callback {
+                      let txt = host_info
+                          .mdns_txt_records(&service_identifier)
+                          .iter()
+                          .map(|(k, v)| format!("{k}={v}"))
+                          .collect::<Vec<_>>()
+                          .join("\n");
+                      if let (Ok(cid), Ok(ctxt)) = (CString::new(service_identifier.clone()), CString::new(txt))
+                      {
+                          cb(port, cid.as_ptr(), ctxt.as_ptr(), ctx.0);
+                      }
+                  }
+
+                  let pair = async {
+                      let (stream, _peer) = listener
+                          .accept()
+                          .await
+                          .map_err(|e| IdeviceError::InternalError(format!("accept: {e}")))?;
+
+                      let socket = RpPairingSocket::new_device(stream);
+                      let mut host = PairableHost::new(socket, host_info);
+
+                      let peer_device = host
+                          .accept(&mut pairing_file, |pin| async move {
+                              if let Some(cb) = pin_callback
+                                  && let Ok(cpin) = CString::new(pin)
+                              {
+                                  cb(cpin.as_ptr(), ctx.0);
+                              }
+                          })
+                          .await?;
+
+                      Ok::<_, IdeviceError>(peer_device)
+                  };
+
+                  let result = match cancel {
+                      Some(c) => {
+                          tokio::select! {
+                              biased;
+                              _ = c.canceled() => Err(IdeviceError::CanceledByUser),
+                              r = pair => r,
+                          }
+                      }
+                      None => pair.await,
+                  };
+
+                  result.map(|_peer_device| pairing_file)
+              });
+
+              match res {
+                  Ok(rpf) => {
+                      unsafe { *out_pairing_file = Box::into_raw(Box::new(RpPairingFileHandle(rpf))) };
+                      null_mut()
+                  }
+                  Err(e) => ffi_err!(e),
+              }
+          }
+          STEALTH_PATCH_EOF
+          grep -c stealth_pairable_host_accept idevice-src/ffi/src/pairable_host.rs
+
       - name: Install Rust (iOS target)
         run: |
           rustup toolchain install stable --profile minimal
@@ -39,6 +181,7 @@ jobs:
           cp ../target/aarch64-apple-ios/release/libidevice_ffi.a "$GITHUB_WORKSPACE/Vendor/idevice/"
           cp idevice.h "$GITHUB_WORKSPACE/Vendor/idevice/"
           ls -la "$GITHUB_WORKSPACE/Vendor/idevice"
+          grep -n "stealth_pairable_host_accept\|pairable_host_cancel_new\|rp_pairing_file_write" idevice.h || true
 
       - name: Generate the Xcode project
         run: |
