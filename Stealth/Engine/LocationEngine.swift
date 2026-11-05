@@ -94,6 +94,72 @@ final class LocationEngine {
         return nil
     }
 
+    // MARK: classic pairing created on the iPhone itself
+
+    private static let pairLock = NSLock()
+    private static var pairRunning = false
+    private static var pairStatus = "not tried yet"
+    static var classicPairStatus: String { pairLock.lock(); defer { pairLock.unlock() }; return pairStatus }
+    private static func setPairStatus(_ text: String) { pairLock.lock(); pairStatus = text; pairLock.unlock() }
+
+    /// Once the RPPairing tunnel is open (Wi-Fi), ask the already-trusted developer channel of the
+    /// iPhone for a classic pairing record and save it. With that file the next connections go
+    /// through LocalDevVPN only and work with mobile data. Runs in the background; iOS may show a
+    /// "Trust" prompt that has to be accepted. Experimental: failures are only reported as text.
+    private func startClassicPairing(savingTo path: String) {
+        guard let a = adapter, let h = handshake else { return }
+        Self.pairLock.lock()
+        if Self.pairRunning { Self.pairLock.unlock(); return }
+        Self.pairRunning = true
+        Self.pairLock.unlock()
+
+        guard let adapterCopy = adapter_clone(a), let handshakeCopy = rsd_handshake_clone(h) else {
+            Self.pairLock.lock(); Self.pairRunning = false; Self.pairLock.unlock()
+            return
+        }
+        Self.setPairStatus("started")
+
+        DispatchQueue.global(qos: .utility).async { [self] in
+            defer {
+                rsd_handshake_free(handshakeCopy)
+                adapter_free(adapterCopy)
+                Self.pairLock.lock(); Self.pairRunning = false; Self.pairLock.unlock()
+            }
+            var client: OpaquePointer?
+            if let e = lockdownd_connect_rsd(adapterCopy, handshakeCopy, &client) {
+                Self.setPairStatus("lockdown over the tunnel failed: " + describe(e)); return
+            }
+            defer { if let client { lockdownd_client_free(client) } }
+
+            var file: OpaquePointer?
+            let hostID = UUID().uuidString
+            let buid = UUID().uuidString
+            if let e = lockdownd_pair(client, hostID, buid, "Stealth", &file) {
+                Self.setPairStatus("pair request failed: " + describe(e)); return
+            }
+            guard let file else { Self.setPairStatus("pair returned nothing"); return }
+            defer { idevice_pairing_file_free(file) }
+
+            var bytes: UnsafeMutablePointer<UInt8>?
+            var length: UInt = 0
+            if let e = idevice_pairing_file_serialize(file, &bytes, &length) {
+                Self.setPairStatus("could not serialize: " + describe(e)); return
+            }
+            guard let bytes else { Self.setPairStatus("empty pairing file"); return }
+            let data = Data(bytes: bytes, count: Int(length))
+            idevice_data_free(bytes, length)
+            do {
+                let url = URL(fileURLWithPath: path)
+                try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try data.write(to: url, options: .atomic)
+                try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
+                Self.setPairStatus("saved - next time it works without Wi-Fi")
+            } catch {
+                Self.setPairStatus("could not save: \(error.localizedDescription)")
+            }
+        }
+    }
+
     /// Classic route (same as StikDebug / Locus): lockdown (port 62078) -> CoreDeviceProxy -> RSD.
     /// It goes through LocalDevVPN only, so it works with mobile data and without Wi-Fi.
     /// Returns nil on success, or the error text.
@@ -194,10 +260,16 @@ final class LocationEngine {
             }
         }
 
+        if connected, classicPath == nil {
+            // Connected through the RPPairing route: try to create the classic pairing on the iPhone itself.
+            let dir = (pairingPath as NSString).deletingLastPathComponent
+            startClassicPairing(savingTo: dir + "/pairing_file.plist")
+        }
+
         if !connected {
             lastGood = nil
             let hint = classicPath == nil
-                ? "Import the classic pairing file (the .mobiledevicepairing / pairing .plist from idevice_pair) to work without Wi-Fi. "
+                ? "Without Wi-Fi a classic pairing file is needed; connect once to Wi-Fi and use Teleport to create it (status: \(Self.classicPairStatus)). "
                 : ""
             return EngineFailure(step: hint + "Could not open the developer tunnel. Is LocalDevVPN connected and Developer Mode on?",
                                  detail: log.joined(separator: " | "))
