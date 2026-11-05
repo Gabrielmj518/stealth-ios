@@ -27,18 +27,18 @@ final class LocationEngine {
 
     // MARK: public async API
 
-    func set(latitude: Double, longitude: Double, pairingPath: String, ip: String) async -> EngineFailure? {
+    func set(latitude: Double, longitude: Double, pairingPath: String, classicPath: String?, ip: String) async -> EngineFailure? {
         await withCheckedContinuation { cont in
             queue.async {
-                cont.resume(returning: self.setLocked(latitude, longitude, pairingPath, ip))
+                cont.resume(returning: self.setLocked(latitude, longitude, pairingPath, classicPath, ip))
             }
         }
     }
 
-    func clear(pairingPath: String, ip: String) async -> EngineFailure? {
+    func clear(pairingPath: String, classicPath: String?, ip: String) async -> EngineFailure? {
         await withCheckedContinuation { cont in
             queue.async {
-                cont.resume(returning: self.clearLocked(pairingPath, ip))
+                cont.resume(returning: self.clearLocked(pairingPath, classicPath, ip))
             }
         }
     }
@@ -94,58 +94,112 @@ final class LocationEngine {
         return nil
     }
 
-    private func openLocked(_ pairingPath: String, _ ip: String) -> EngineFailure? {
+    /// Classic route (same as StikDebug / Locus): lockdown (port 62078) -> CoreDeviceProxy -> RSD.
+    /// It goes through LocalDevVPN only, so it works with mobile data and without Wi-Fi.
+    /// Returns nil on success, or the error text.
+    private func openClassic(_ path: String, _ ip: String) -> String? {
+        guard var address = makeAddress(ip, 62078) else { return "invalid IP \(ip)" }
+
+        var pairing: OpaquePointer?
+        if let e = idevice_pairing_file_read(path, &pairing) { return "pairing: " + describe(e) }
+        guard let pairing else { return "pairing: empty handle" }
+
+        var provider: OpaquePointer?
+        let providerError = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPointer in
+                idevice_tcp_provider_new(sockPointer, pairing, "Stealth", &provider)
+            }
+        }
+        if let e = providerError { idevice_pairing_file_free(pairing); return "provider: " + describe(e) }
+
+        var proxy: OpaquePointer?
+        let proxyError = core_device_proxy_connect(provider, &proxy)
+        idevice_provider_free(provider)
+        if let e = proxyError { return "lockdown/proxy: " + describe(e) }
+
+        var rsdPort: UInt16 = 0
+        if let e = core_device_proxy_get_server_rsd_port(proxy, &rsdPort) {
+            core_device_proxy_free(proxy); return "rsd port: " + describe(e)
+        }
+
+        var newAdapter: OpaquePointer?
+        if let e = core_device_proxy_create_tcp_adapter(proxy, &newAdapter) { return "adapter: " + describe(e) }   // consumes `proxy`
+
+        var stream: OpaquePointer?
+        if let e = adapter_connect(newAdapter, rsdPort, &stream) {
+            adapter_free(newAdapter); return "rsd connect: " + describe(e)
+        }
+        var newHandshake: OpaquePointer?
+        if let e = rsd_handshake_new(stream, &newHandshake) {
+            adapter_free(newAdapter); return "rsd handshake: " + describe(e)
+        }
+        adapter = newAdapter
+        handshake = newHandshake
+        return nil
+    }
+
+    private func openLocked(_ pairingPath: String, _ classicPath: String?, _ ip: String) -> EngineFailure? {
         guard makeAddress(ip, Self.tunnelPort) != nil else {
             return EngineFailure(step: "The tunnel IP is not valid", detail: ip)
         }
 
-        var pairing: OpaquePointer?
-        if let e = rp_pairing_file_read(pairingPath, &pairing) {
-            return EngineFailure(step: "Could not read the pairing file. Create an RPPairing file with idevice_pair and import it again", detail: describe(e))
-        }
-        guard let pairing else {
-            return EngineFailure(step: "Could not read the pairing file", detail: "empty handle")
-        }
-        defer { rp_pairing_file_free(pairing) }
-
         var connected = false
         var log: [String] = []
 
-        // 1. The address that worked last time.
-        if let good = lastGood {
-            if let err = openTunnel(pairing, good.ip, good.port) { log.append("\(good.ip):\(good.port) -> \(err)") }
+        // A. Classic pairing file: works with mobile data (LocalDevVPN only).
+        if let classicPath {
+            if let err = openClassic(classicPath, ip) { log.append("classic -> \(err)"); teardown() }
             else { connected = true }
         }
 
-        // 2. Discover the real port with Bonjour, then fall back to the old fixed port.
-        if !connected {
-            let found = PortDiscovery.find()
-            var candidates: [(String, UInt16)] = []
-            var seen = Set<String>()
-            func add(_ host: String, _ port: UInt16) {
-                if seen.insert("\(host):\(port)").inserted { candidates.append((host, port)) }
-            }
-            for f in found {
-                add(ip, f.port)
-                if let h = f.host { add(h, f.port) }
-            }
-            add(ip, Self.tunnelPort)
-            log.append("found services: " + (found.isEmpty ? "none" : found.map { "\($0.host ?? "?"):\($0.port)" }.joined(separator: ", ")))
+        // B. RPPairing file (needs Wi-Fi): only if the classic route is missing or failed.
+        if !connected, FileManager.default.fileExists(atPath: pairingPath) {
+            var pairing: OpaquePointer?
+            if let e = rp_pairing_file_read(pairingPath, &pairing) {
+                log.append("rp file -> " + describe(e))
+            } else if let pairing {
+                defer { rp_pairing_file_free(pairing) }
 
-            for (host, port) in candidates {
-                if let err = openTunnel(pairing, host, port) {
-                    log.append("\(host):\(port) -> \(err)")
-                } else {
-                    lastGood = (host, port)
-                    connected = true
-                    break
+                // 1. The address that worked last time.
+                if let good = lastGood {
+                    if let err = openTunnel(pairing, good.ip, good.port) { log.append("\(good.ip):\(good.port) -> \(err)") }
+                    else { connected = true }
+                }
+
+                // 2. Discover the real port with Bonjour, then fall back to the old fixed port.
+                if !connected {
+                    let found = PortDiscovery.find()
+                    var candidates: [(String, UInt16)] = []
+                    var seen = Set<String>()
+                    func add(_ host: String, _ port: UInt16) {
+                        if seen.insert("\(host):\(port)").inserted { candidates.append((host, port)) }
+                    }
+                    for f in found {
+                        add(ip, f.port)
+                        if let h = f.host { add(h, f.port) }
+                    }
+                    add(ip, Self.tunnelPort)
+                    log.append("found services: " + (found.isEmpty ? "none" : found.map { "\($0.host ?? "?"):\($0.port)" }.joined(separator: ", ")))
+
+                    for (host, port) in candidates {
+                        if let err = openTunnel(pairing, host, port) {
+                            log.append("\(host):\(port) -> \(err)")
+                        } else {
+                            lastGood = (host, port)
+                            connected = true
+                            break
+                        }
+                    }
                 }
             }
         }
 
         if !connected {
             lastGood = nil
-            return EngineFailure(step: "Could not open the developer tunnel. Is LocalDevVPN connected and Developer Mode on?",
+            let hint = classicPath == nil
+                ? "Import the classic pairing file (the .mobiledevicepairing / pairing .plist from idevice_pair) to work without Wi-Fi. "
+                : ""
+            return EngineFailure(step: hint + "Could not open the developer tunnel. Is LocalDevVPN connected and Developer Mode on?",
                                  detail: log.joined(separator: " | "))
         }
         if let e = remote_server_connect_rsd(adapter, handshake, &remote) {
@@ -159,7 +213,7 @@ final class LocationEngine {
         return nil
     }
 
-    private func setLocked(_ lat: Double, _ lon: Double, _ pairingPath: String, _ ip: String) -> EngineFailure? {
+    private func setLocked(_ lat: Double, _ lon: Double, _ pairingPath: String, _ classicPath: String?, _ ip: String) -> EngineFailure? {
         if let sim {
             if let e = location_simulation_set(sim, lat, lon) {
                 _ = describe(e)      // stale session: drop it and reconnect below
@@ -168,7 +222,7 @@ final class LocationEngine {
                 return nil
             }
         }
-        if let failure = openLocked(pairingPath, ip) { return failure }
+        if let failure = openLocked(pairingPath, classicPath, ip) { return failure }
         if let e = location_simulation_set(sim, lat, lon) {
             let d = describe(e); teardown()
             return EngineFailure(step: "Failed to set the simulated coordinates", detail: d)
@@ -176,8 +230,8 @@ final class LocationEngine {
         return nil
     }
 
-    private func clearLocked(_ pairingPath: String, _ ip: String) -> EngineFailure? {
-        if sim == nil, let failure = openLocked(pairingPath, ip) { return failure }
+    private func clearLocked(_ pairingPath: String, _ classicPath: String?, _ ip: String) -> EngineFailure? {
+        if sim == nil, let failure = openLocked(pairingPath, classicPath, ip) { return failure }
         var failure: EngineFailure?
         if let e = location_simulation_clear(sim) {
             failure = EngineFailure(step: "Failed to restore the real location", detail: describe(e))

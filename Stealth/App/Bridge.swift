@@ -50,14 +50,14 @@ final class Bridge: NSObject, ObservableObject, WKScriptMessageHandler, WKUIDele
                   let lon = (body["lon"] as? NSNumber)?.doubleValue else { return done(["ok": false, "error": "Bad coordinates"]) }
             guard pairing.hasFile else { return done(["ok": false, "error": "Import a pairing file first (tap your iPhone at the top left)."]) }
             Task {
-                let failure = await LocationEngine.shared.set(latitude: lat, longitude: lon, pairingPath: self.pairing.path, ip: self.tunnelIP)
+                let failure = await LocationEngine.shared.set(latitude: lat, longitude: lon, pairingPath: self.pairing.path, classicPath: self.pairing.classicPath, ip: self.tunnelIP)
                 done(failure == nil ? ["ok": true] : ["ok": false, "error": failure!.localizedDescription])
             }
 
         case "clear":
             guard pairing.hasFile else { return done(["ok": false, "error": "Import a pairing file first."]) }
             Task {
-                let failure = await LocationEngine.shared.clear(pairingPath: self.pairing.path, ip: self.tunnelIP)
+                let failure = await LocationEngine.shared.clear(pairingPath: self.pairing.path, classicPath: self.pairing.classicPath, ip: self.tunnelIP)
                 done(failure == nil ? ["ok": true] : ["ok": false, "error": failure!.localizedDescription])
             }
 

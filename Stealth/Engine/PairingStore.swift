@@ -18,9 +18,15 @@ final class PairingStore {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Pairing", isDirectory: true)
     }
+    /// RPPairing file (needs Wi-Fi to open the tunnel).
     var url: URL { directory.appendingPathComponent("rp_pairing_file.plist") }
     var path: String { url.path }
-    var hasFile: Bool { FileManager.default.fileExists(atPath: url.path) }
+    var hasRP: Bool { FileManager.default.fileExists(atPath: url.path) }
+    /// Classic pairing file (works over LocalDevVPN with mobile data, no Wi-Fi needed).
+    var classicURL: URL { directory.appendingPathComponent("pairing_file.plist") }
+    var classicPath: String? { hasClassic ? classicURL.path : nil }
+    var hasClassic: Bool { FileManager.default.fileExists(atPath: classicURL.path) }
+    var hasFile: Bool { hasRP || hasClassic }
 
     func ensureDirectory() { try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true) }
 
@@ -44,14 +50,25 @@ final class PairingStore {
         try install(data)
     }
 
-    func remove() { try? FileManager.default.removeItem(at: url) }
+    func remove() {
+        try? FileManager.default.removeItem(at: url)
+        try? FileManager.default.removeItem(at: classicURL)
+    }
+
+    /// A classic (lockdown) pairing file has these keys; an RPPairing file does not.
+    private func isClassic(_ data: Data) -> Bool {
+        guard let obj = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
+              let dict = obj as? [String: Any] else { return false }
+        return dict["DeviceCertificate"] != nil && dict["HostPrivateKey"] != nil
+    }
 
     private func install(_ data: Data) throws {
         guard looksLikePlist(data) else { throw PairingError.invalid }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try? FileManager.default.removeItem(at: url)
-        try data.write(to: url, options: .atomic)
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        let target = isClassic(data) ? classicURL : url
+        try? FileManager.default.removeItem(at: target)
+        try data.write(to: target, options: .atomic)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
     }
 
     private func looksLikePlist(_ data: Data) -> Bool {
