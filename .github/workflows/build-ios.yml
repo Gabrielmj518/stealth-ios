@@ -176,7 +176,7 @@ jobs:
         working-directory: idevice-src/ffi
         run: |
           cargo build --release --target aarch64-apple-ios --no-default-features \
-            --features "ring,tcp,tunnel_tcp_stack,core_device_proxy,rsd,remote_pairing,dvt,location_simulation,xpc"
+            --features "ring,tcp,pair,tunnel_tcp_stack,core_device_proxy,rsd,remote_pairing,dvt,location_simulation,xpc"
           mkdir -p "$GITHUB_WORKSPACE/Vendor/idevice"
           cp ../target/aarch64-apple-ios/release/libidevice_ffi.a "$GITHUB_WORKSPACE/Vendor/idevice/"
           cp idevice.h "$GITHUB_WORKSPACE/Vendor/idevice/"
