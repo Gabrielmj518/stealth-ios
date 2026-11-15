@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Stealth</title>
+<html lang="en"><head><meta charset="utf-8"><title>Satelite</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
-<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Stealth"><meta name="theme-color" content="#141414">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Satelite"><meta name="theme-color" content="#141414">
 <link rel="apple-touch-icon" href="icon.png">
-<link rel="stylesheet" href="vendor/leaflet.css"><link rel="stylesheet" href="vendor/maplibre-gl.css"><link rel="stylesheet" href="style.css"></head>
+<link rel="stylesheet" href="vendor/leaflet.css"><link rel="stylesheet" href="vendor/maplibre-gl.css"><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="theme.css"></head>
 <body>
 <div id="map"></div>
 <div id="drag"></div>
@@ -100,6 +100,7 @@
 
 <div id="simbar" class="glass hidden">
   <div class="sim-tag"><i class="pulse"></i>SIMULATION ACTIVE</div>
+  <div id="sim-cd" class="sim-cd hidden"></div>
   <div class="sim-info"><b id="sim-place">—</b><small id="sim-coords"></small></div>
   <div class="sim-row">
     <div class="sim-chip"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2h5"/></svg><span id="sim-time">00:00:00</span><small id="sim-sub">elapsed</small></div>
@@ -107,5 +108,5 @@
   </div>
 </div>
 <div id="toast" class="glass hidden"></div>
-<script src="vendor/leaflet.js"></script><script src="vendor/maplibre-gl.js"></script><script src="remote.js"></script><script src="map.js"></script><script src="app.js"></script>
+<script src="vendor/leaflet.js"></script><script src="vendor/maplibre-gl.js"></script><script src="remote.js"></script><script src="map.js"></script><script src="app.js"></script><script src="extras.js"></script>
 </body></html>

@@ -12,7 +12,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 // ====================== settings ======================
 const DEFAULTS = {
   speed: 5, speedVar: 0, routeMode: 'roads', loop: false, pauseWp: 0, tick: 1000, drift: 0,
-  instantClick: false, fly: true, tpZoom: 14, geocode: true, autoStop: 0, stopConfirm: false, stopOnClose: true, restoreLast: true,
+  instantClick: false, fly: true, tpZoom: 14, geocode: true, autoStop: 0, stopConfirm: false, stopOnClose: true, restoreLast: true, cooldown: true,
   mapStyle: 'standard', haptics: true, units: 'km', trail: true, follow: true, showCoords: false,
   accent: '#4aa3ff', compact: false, scale: 1, anim: true, sound: false, showBattery: true, alwaysOnTop: false, shortcuts: true, openReq: false
 };
@@ -157,6 +157,7 @@ function trailAdd(ll, reset) {
   if (trailPts.length > 1) { if (trailLine) trailLine.setLatLngs(trailPts); else trailLine = LL.polyline(trailPts, { color: getComputedStyle(document.documentElement).getPropertyValue('--ac').trim() || '#4aa3ff', weight: 3, opacity: 0.55 }).addTo(map); }
 }
 async function teleport(lat, lon, o = {}) {
+  const prev = current;
   if (!o.quiet) toast('Sending location to iPhone… (the first time can take a minute)', 60000);
   const [la, lo] = drift(lat, lon);
   const r = await stealth.setLocation(la, lo);
@@ -172,6 +173,7 @@ async function teleport(lat, lon, o = {}) {
     if (cfg.fly) map.flyTo(current, Math.max(map.getZoom(), cfg.tpZoom));
     beep('ok'); toast(`Teleported to ${fmt(current)}`);
     addRecent(current, o.name);
+    try { if (window.onTeleported) onTeleported(prev, current); } catch {}
   }
   simOn(!o.quiet);
   return true;
@@ -342,14 +344,48 @@ document.querySelectorAll('#saved-tabs button').forEach((b) => b.onclick = () =>
 function setMode(m) { mode = m; $('#m-tp').classList.toggle('on', m === 'tp'); $('#m-route').classList.toggle('on', m === 'route'); $('#routebar').classList.toggle('hidden', m !== 'route'); map.closePopup(); }
 $('#m-tp').onclick = () => setMode('tp'); $('#m-route').onclick = () => setMode('route');
 
+const addrCache = new Map();
+async function addressOf(ll) {
+  if (!cfg.geocode) return null;
+  const k = ll.map((v) => v.toFixed(4)).join();
+  if (addrCache.has(k)) return addrCache.get(k);
+  try {
+    const j = await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&lat=${ll[0]}&lon=${ll[1]}`)).json();
+    const a = j.address || {};
+    const road = a.road || a.pedestrian || a.footway || a.path || a.cycleway;
+    const street = road ? (a.house_number ? `${road} ${a.house_number}` : road) : '';
+    const title = street || j.name || a.amenity || a.suburb || a.neighbourhood || a.city || a.town || a.village || '';
+    const area = [a.suburb || a.neighbourhood, a.city || a.town || a.village || a.county, a.state].filter(Boolean).filter((x) => x !== title);
+    const out = { title, sub: area.slice(0, 2).join(', ') + (a.country_code ? ' · ' + a.country_code.toUpperCase() : '') };
+    if (title) addrCache.set(k, out);
+    return title ? out : null;
+  } catch { return null; }
+}
 function openAt(ll, name) {
   if (mode !== 'tp') return;
   const el = document.createElement('div'); el.className = 'pop';
+  const t1 = document.createElement('div'); t1.className = 'pa'; t1.textContent = (name || 'Looking up address…').slice(0, 80);
+  const t2 = document.createElement('div'); t2.className = 'pc'; t2.textContent = fmt(ll);
+  el.append(t1, t2);
   let label = name || '';
-  if (!name) placeName(ll).then((n) => { if (n) label = n; });
-  const go = Object.assign(document.createElement('button'), { textContent: 'Teleport', onclick: () => { map.closePopup(); teleport(ll[0], ll[1], { name: label }); } });
-  const sv = Object.assign(document.createElement('button'), { className: 's', textContent: 'Save', onclick: () => { const l = store.get('saved', []); l.push({ name: label || fmt(ll), ll }); store.set('saved', l); toast('Saved'); map.closePopup(); } });
-  const row = document.createElement('div'); row.className = 'row'; row.append(go, sv); el.append(row); LL.popup({ closeButton: false, offset: [0, -2] }).setLatLng(ll).setContent(el).openOn(map);
+  if (!name) addressOf(ll).then((r) => { if (r) { t1.textContent = r.title; t2.textContent = r.sub || fmt(ll); label = r.title + (r.sub ? ', ' + r.sub.split(' · ')[0] : ''); } else t1.textContent = 'Selected place'; });
+  if (current && typeof cooldownMin === 'function') {
+    const d = dist(current, ll), m = cfg.cooldown !== false ? cooldownMin(d / 1000) : 0;
+    const chips = document.createElement('div'); chips.className = 'chips';
+    chips.innerHTML = `<span>${esc(fmtDist(d))}</span>` + (m >= 1 ? `<span class="w">wait ~${esc(fmtDur(m * 60))}</span>` : '');
+    el.append(chips);
+  }
+  const row = document.createElement('div'); row.className = 'row';
+  const go = Object.assign(document.createElement('button'), { className: 'go', textContent: 'Teleport', onclick: () => { map.closePopup(); teleport(ll[0], ll[1], { name: label }); } });
+  const sv = Object.assign(document.createElement('button'), { className: 's', textContent: 'Save', onclick: () => { const l = store.get('saved', []); l.push({ name: label || fmt(ll), ll }); store.set('saved', l); toast('Saved'); buzz('tap'); map.closePopup(); } });
+  const more = Object.assign(document.createElement('button'), { className: 's more', textContent: '⋯', title: 'More', onclick: () => menu.classList.toggle('hidden') });
+  const menu = document.createElement('div'); menu.className = 'pmenu hidden';
+  const item = (txt, fn) => { const b = document.createElement('button'); b.textContent = txt; b.onclick = () => { menu.classList.add('hidden'); fn(); }; menu.append(b); };
+  item('Copy coordinates', () => copyText(fmt(ll)));
+  item('Open in Maps', () => { const u = `https://maps.apple.com/?ll=${ll[0]},${ll[1]}&q=${encodeURIComponent(label || 'Pin')}`; if (window.stealth && stealth.openExternal) stealth.openExternal(u); else window.open(u, '_blank'); });
+  item('Teleport + save', () => { const l = store.get('saved', []); l.push({ name: label || fmt(ll), ll }); store.set('saved', l); map.closePopup(); teleport(ll[0], ll[1], { name: label }); });
+  row.append(go, sv, more); el.append(row, menu);
+  LL.popup({ closeButton: false, offset: [0, -2] }).setLatLng(ll).setContent(el).openOn(map);
 }
 
 map.on('click', (e) => {
@@ -503,6 +539,7 @@ const SCHEMA = [
   ] },
   { t: 'Teleport & session', items: [
     { type: 'toggle', key: 'instantClick', label: 'Teleport on click', desc: 'Skip the confirmation popup in Teleport mode' },
+    { type: 'toggle', key: 'cooldown', label: 'Wait-time timer', desc: 'After a long jump, shows a suggested wait before the next teleport' },
     { type: 'toggle', key: 'fly', label: 'Zoom to location', desc: 'Move the map to the new position after teleporting' },
     { type: 'range', key: 'tpZoom', label: 'Zoom level', min: 8, max: 18, step: 1, fmt: (v) => String(v) },
     { type: 'select', key: 'autoStop', label: 'Auto-stop timer', desc: 'Return to your real location automatically', opts: [[0, 'Off'], [5, '5 min'], [15, '15 min'], [30, '30 min'], [60, '1 hour'], [120, '2 hours'], [240, '4 hours']] },
