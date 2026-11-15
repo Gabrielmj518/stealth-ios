@@ -214,6 +214,7 @@ $('#sim-stop').onclick = () => stopSim();
 $('#b-clear').onclick = () => stopSim();
 
 function pushSim() {
+  try { store.set('sim', simStart && current ? { start: simStart, at: current, name: ($('#sim-place').textContent || '').trim() } : null); } catch {}
   if (window.stealth && stealth.simNotify) stealth.simNotify({ active: !!simStart, start: simStart || 0, place: ($('#sim-place').textContent || '').trim() });
 }
 function pushAppCfg() { if (window.stealth && stealth.appConfig) stealth.appConfig({ alwaysOnTop: cfg.alwaysOnTop, scale: cfg.scale, stopOnClose: cfg.stopOnClose, simActive: !!simStart }); }
@@ -344,15 +345,11 @@ $('#m-tp').onclick = () => setMode('tp'); $('#m-route').onclick = () => setMode(
 function openAt(ll, name) {
   if (mode !== 'tp') return;
   const el = document.createElement('div'); el.className = 'pop';
-  const title = document.createElement('b'); title.textContent = (name || 'Selected place').slice(0, 60);
-  el.append(title, document.createElement('br'));
-  const sm = document.createElement('small'); sm.textContent = fmt(ll); el.append(sm, document.createElement('br'));
-  if (!name) placeName(ll).then((n) => { if (n) title.textContent = n; });
-  const go = Object.assign(document.createElement('button'), { textContent: 'Teleport here', onclick: () => { map.closePopup(); teleport(ll[0], ll[1], { name: name || title.textContent }); } });
-  const sv = Object.assign(document.createElement('button'), { className: 's', textContent: '★ Save', onclick: () => { const l = store.get('saved', []); l.push({ name: name || title.textContent || fmt(ll), ll }); store.set('saved', l); toast('Saved'); map.closePopup(); } });
-  const mp = Object.assign(document.createElement('button'), { className: 's', textContent: 'Maps', onclick: () => { const u = `https://maps.apple.com/?ll=${ll[0]},${ll[1]}&q=${encodeURIComponent(name || title.textContent || 'Pin')}`; if (window.stealth && stealth.openExternal) stealth.openExternal(u); else window.open(u, '_blank'); } });
-  const cp = Object.assign(document.createElement('button'), { className: 's', textContent: 'Copy', onclick: () => copyText(fmt(ll)) });
-  const row = document.createElement('div'); row.className = 'row'; row.append(go, sv, mp, cp); el.append(row); LL.popup({ closeButton: false, offset: [0, -2] }).setLatLng(ll).setContent(el).openOn(map);
+  let label = name || '';
+  if (!name) placeName(ll).then((n) => { if (n) label = n; });
+  const go = Object.assign(document.createElement('button'), { textContent: 'Teleport', onclick: () => { map.closePopup(); teleport(ll[0], ll[1], { name: label }); } });
+  const sv = Object.assign(document.createElement('button'), { className: 's', textContent: 'Save', onclick: () => { const l = store.get('saved', []); l.push({ name: label || fmt(ll), ll }); store.set('saved', l); toast('Saved'); map.closePopup(); } });
+  const row = document.createElement('div'); row.className = 'row'; row.append(go, sv); el.append(row); LL.popup({ closeButton: false, offset: [0, -2] }).setLatLng(ll).setContent(el).openOn(map);
 }
 
 map.on('click', (e) => {
@@ -606,3 +603,23 @@ document.addEventListener('keydown', (e) => {
 
 // ====================== init ======================
 applyCfg(); setMapStyle(); routeInfo();
+
+// ====================== keep the simulation bar alive ======================
+// After a long time iOS can reload the web page; the simulation keeps running natively, so rebuild the bar.
+async function restoreSim() {
+  const s = store.get('sim', null);
+  if (!s || simStart || !window.stealth || !stealth.simStatus) return;
+  const r = await stealth.simStatus();
+  if (!r || !r.ok) return;
+  if (!r.active) { store.set('sim', null); return; }
+  current = s.at; simStart = s.start; autoStopAt = cfg.autoStop ? simStart + cfg.autoStop * 60000 : null;
+  if (meMarker) meMarker.setLatLng(current); else meMarker = LL.marker(current, { icon: meIcon, interactive: false }).addTo(map);
+  await simOn(false);
+  if (s.name) { $('#sim-place').textContent = s.name; $('#sim-coords').textContent = s.name === fmt(current) ? '' : fmt(current); pushSim(); }
+}
+restoreSim();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (simStart) { $('#simbar').classList.remove('hidden'); renderSim(); clearInterval(simTimer); simTimer = setInterval(renderSim, 1000); }
+  else restoreSim();
+});

@@ -34,6 +34,7 @@ struct WebHost: UIViewRepresentable {
 
         let web = WKWebView(frame: .zero, configuration: config)
         web.uiDelegate = bridge
+        web.navigationDelegate = bridge
         web.isOpaque = false
         let bg = UIColor(red: 0.078, green: 0.078, blue: 0.078, alpha: 1)
         web.backgroundColor = bg

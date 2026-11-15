@@ -4,13 +4,17 @@ import UniformTypeIdentifiers
 import WebKit
 
 /// Connects the web interface (window.stealth.*) with the native engine.
-final class Bridge: NSObject, ObservableObject, WKScriptMessageHandler, WKUIDelegate, UIDocumentPickerDelegate {
+final class Bridge: NSObject, ObservableObject, WKScriptMessageHandler, WKUIDelegate, WKNavigationDelegate, UIDocumentPickerDelegate {
     weak var webView: WKWebView?
     private let pairing = PairingStore()
     private let keepAlive = KeepAlive()
     private var pickerDone: (([String: Any]) -> Void)?
 
     private var tunnelIP: String { LocationEngine.defaultIP }
+
+    // iOS can kill the web content process after a long time in the background: reload the page
+    // (the simulation itself keeps running natively and the page rebuilds its bar from it).
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { webView.reload() }
 
     // MARK: messages from JavaScript
 
@@ -59,6 +63,12 @@ final class Bridge: NSObject, ObservableObject, WKScriptMessageHandler, WKUIDele
             Task {
                 let failure = await LocationEngine.shared.clear(pairingPath: self.pairing.path, classicPath: self.pairing.classicPath, ip: self.tunnelIP)
                 done(failure == nil ? ["ok": true] : ["ok": false, "error": failure!.localizedDescription])
+            }
+
+        case "simStatus":
+            Task.detached {
+                let active = LocationEngine.shared.isActive
+                done(["ok": true, "active": active])
             }
 
         case "importPairing":

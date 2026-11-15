@@ -12,6 +12,7 @@ if (!window.stealth && window.webkit && window.webkit.messageHandlers && window.
     requirements: () => call('requirements'),
     setLocation: (lat, lon) => call('set', { lat, lon }),
     clearLocation: () => call('clear'),
+    simStatus: () => call('simStatus'),
     importPairing: () => call('importPairing'),
     pastePairing: () => call('pastePairing'),
     openVPN: () => call('openVPN'),
