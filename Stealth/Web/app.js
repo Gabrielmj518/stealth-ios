@@ -12,7 +12,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 // ====================== settings ======================
 const DEFAULTS = {
   speed: 5, speedVar: 0, routeMode: 'roads', loop: false, pauseWp: 0, tick: 1000, drift: 0,
-  instantClick: false, fly: true, tpZoom: 14, geocode: true, autoStop: 0, stopConfirm: false, stopOnClose: true, restoreLast: true, cooldown: true, appleMap: false,
+  instantClick: false, fly: true, tpZoom: 14, geocode: true, autoStop: 0, stopConfirm: false, stopOnClose: true, restoreLast: true, cooldown: true,
   mapStyle: 'standard', haptics: true, units: 'km', trail: true, follow: true, showCoords: false,
   accent: '#4aa3ff', compact: false, scale: 1, anim: true, sound: false, showBattery: true, alwaysOnTop: false, shortcuts: true, openReq: false
 };
@@ -81,16 +81,13 @@ document.querySelectorAll('#winbtns button').forEach((b) => b.onclick = () => st
 // ====================== map ======================
 const lastView = store.get('last', null);
 const startLL = lastView && cfg.restoreLast ? lastView : [37.5, -96], startZ = lastView && cfg.restoreLast ? 12 : 4;
-let USE_GL = !!window.GL_OK, USE_AP = false, map = null;
-if (cfg.appleMap && window.AM_OK) {     // native Apple Maps (beta); falls back by itself if iOS does not answer
-  try { map = new AppleMap('map', { center: startLL, zoom: startZ }); USE_AP = true; USE_GL = true; } catch (e) { map = null; USE_AP = false; USE_GL = !!window.GL_OK; cfg.appleMap = false; saveCfg(); }
-}
-if (!USE_AP && USE_GL) { try { map = new GLMap('map', { center: startLL, zoom: startZ, minZoom: 2 }); } catch (e) { USE_GL = false; map = null; } }
+let USE_GL = !!window.GL_OK, map = null;
+if (USE_GL) { try { map = new GLMap('map', { center: startLL, zoom: startZ, minZoom: 2 }); } catch (e) { USE_GL = false; map = null; } }
 if (!USE_GL) {      // no WebGL: classic raster map
   map = L.map('map', { zoomControl: false, attributionControl: false, worldCopyJump: true, minZoom: 2 }).setView(startLL, startZ);
   L.control.attribution({ prefix: false }).addTo(map);
 }
-const LL = USE_AP ? window.LGA : USE_GL ? window.LGL : window.L;
+const LL = USE_GL ? window.LGL : window.L;
 document.documentElement.classList.add(USE_GL ? 'gl' : 'nogl');
 const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
 let tileLayers = [], shownStyle = null;
@@ -542,7 +539,6 @@ const SCHEMA = [
   ] },
   { t: 'Teleport & session', items: [
     { type: 'toggle', key: 'instantClick', label: 'Teleport on click', desc: 'Skip the confirmation popup in Teleport mode' },
-    { type: 'toggle', key: 'appleMap', label: 'Apple Maps (beta)', desc: 'Native Apple map instead of the web map. Restarts the map when changed', nat: true },
     { type: 'toggle', key: 'cooldown', label: 'Wait-time timer', desc: 'After a long jump, shows a suggested wait before the next teleport' },
     { type: 'toggle', key: 'fly', label: 'Zoom to location', desc: 'Move the map to the new position after teleporting' },
     { type: 'range', key: 'tpZoom', label: 'Zoom level', min: 8, max: 18, step: 1, fmt: (v) => String(v) },
@@ -617,7 +613,6 @@ function renderSettings() {
   body.scrollTop = keep;
 }
 function applyCfg() {
-  if (!!cfg.appleMap !== USE_AP && (window.AM_OK || USE_AP)) { if (!window.__reloading) { window.__reloading = true; toast('Switching map…'); setTimeout(() => location.reload(), 500); } return; }
   const [r, g, b] = hexRgb(cfg.accent), root = document.documentElement.style;
   root.setProperty('--ac', cfg.accent); root.setProperty('--ac-rgb', `${r},${g},${b}`);
   document.body.classList.toggle('compact', !!cfg.compact); document.body.classList.toggle('noanim', !cfg.anim);
