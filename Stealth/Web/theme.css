@@ -109,3 +109,11 @@ body{font-family:-apple-system,"SF Pro Text","Segoe UI Variable","Segoe UI",syst
 .pop button:focus,.pop button:focus-visible{outline:none}
 #pad{width:172px;left:10px}
 .pad-grid button{width:46px;height:46px}
+
+/* ---- Apple Maps (native map behind a transparent page) ---- */
+html.apple,html.apple body{background:transparent!important}
+html.apple #map{display:none}
+.amarker{position:fixed;left:0;top:0;z-index:2;will-change:transform}
+.apopup{position:fixed;left:0;top:0;z-index:9;will-change:transform}
+.apopup-c{background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.5);backdrop-filter:blur(22px) saturate(1.5);border:1px solid var(--line2);border-radius:16px;padding:11px 12px;box-shadow:0 14px 36px rgba(0,0,0,.5);color:var(--tx)}
+.apopup-tip{width:12px;height:12px;background:rgba(24,25,33,.95);border-right:1px solid var(--line2);border-bottom:1px solid var(--line2);transform:translateX(-50%) rotate(45deg);position:absolute;left:50%;bottom:-6px}

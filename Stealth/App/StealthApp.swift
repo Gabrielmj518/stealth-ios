@@ -27,16 +27,21 @@ struct RootView: View {
 struct WebHost: UIViewRepresentable {
     let bridge: Bridge
 
-    func makeUIView(context: Context) -> WKWebView {
+    func makeUIView(context: Context) -> UIView {
+        let bg = UIColor(red: 0.078, green: 0.078, blue: 0.078, alpha: 1)
+        let container = UIView()
+        container.backgroundColor = bg
+
         let config = WKWebViewConfiguration()
         config.userContentController.add(WeakScriptHandler(bridge), name: "stealth")
+        config.userContentController.add(WeakScriptHandler(bridge.appleMap), name: "applemap")
         config.allowsInlineMediaPlayback = true
 
-        let web = WKWebView(frame: .zero, configuration: config)
+        let web = PassthroughWebView(frame: container.bounds, configuration: config)
+        web.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         web.uiDelegate = bridge
         web.navigationDelegate = bridge
         web.isOpaque = false
-        let bg = UIColor(red: 0.078, green: 0.078, blue: 0.078, alpha: 1)
         web.backgroundColor = bg
         web.scrollView.backgroundColor = bg
         web.scrollView.contentInsetAdjustmentBehavior = .never
@@ -44,15 +49,18 @@ struct WebHost: UIViewRepresentable {
         web.scrollView.showsVerticalScrollIndicator = false
         web.allowsLinkPreview = false
         if #available(iOS 16.4, *) { web.isInspectable = true }
+        container.addSubview(web)
         bridge.webView = web
+        bridge.appleMap.container = container
+        bridge.appleMap.web = web
 
         if let dir = Bundle.main.url(forResource: "Web", withExtension: nil) {
             web.loadFileURL(dir.appendingPathComponent("index.html"), allowingReadAccessTo: dir)
         } else {
             web.loadHTMLString("<body style='background:#141414;color:#fff;font:16px -apple-system'>Web resources are missing from the app bundle.</body>", baseURL: nil)
         }
-        return web
+        return container
     }
 
-    func updateUIView(_ uiView: WKWebView, context: Context) {}
+    func updateUIView(_ uiView: UIView, context: Context) {}
 }

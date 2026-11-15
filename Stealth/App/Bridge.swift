@@ -6,6 +6,7 @@ import WebKit
 /// Connects the web interface (window.stealth.*) with the native engine.
 final class Bridge: NSObject, ObservableObject, WKScriptMessageHandler, WKUIDelegate, WKNavigationDelegate, UIDocumentPickerDelegate {
     weak var webView: WKWebView?
+    let appleMap = AppleMapController()
     private let pairing = PairingStore()
     private let keepAlive = KeepAlive()
     private var pickerDone: (([String: Any]) -> Void)?
